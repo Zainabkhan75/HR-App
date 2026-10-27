@@ -1,6 +1,6 @@
 # Checked employee imports
 
-The employee-import Supabase Edge Function uses the supported Auth Admin createUser API. It never resets existing passwords, sends invitation emails or returns credentials. A password is derived in memory from the first whitespace-delimited name exactly as submitted plus the final four digits of a validated 13-digit CNIC. A new account is linked under the existing employee ID username with must_change_password=true.
+The employee-import Supabase Edge Function uses the supported Auth Admin createUser API. It never resets existing passwords, sends invitation emails or returns credentials. A password is derived in memory from the first whitespace-delimited name exactly as submitted plus the final four digits of a validated 13-digit CNIC. A new account is linked under the existing employee account (the stored internal username remains the employee ID; application sign-in accepts verified email addresses only) with must_change_password=true.
 
 Access requires both a valid platform JWT and a random, short-lived, single-use job token. Jobs are created only through trusted administrative access in hrms_private.employee_import_jobs. The token is stored only as a SHA-256 digest and invalidated atomically on claim. Public claim/commit wrappers and their private implementations are executable only by service_role. Both private tables have RLS and restrictive deny policies for authenticated clients.
 
@@ -13,3 +13,5 @@ Email selection uses a valid unique company address, or a valid unique personal 
 No employee data, passwords, job tokens or API keys belong in this repository. Review plans and execution results are kept outside git; durable before-images are in the private import audit table. New personal/emergency/background fields are allowlisted in the employee's own-profile RPC and available in HR editing. New background fields are view-only in ESS; corrections go through HR.
 
 Verification includes a rollback test of token rejection/reuse, grant checks, account-creation results, initial password sign-in using the employee-ID resolver, the first-login profile gate, original-account fingerprint comparison, and salary/payroll preservation. Deno Edge Function source is excluded from Next.js type-checking and deployed/validated through Supabase separately.
+
+Verified email aliases are managed separately from editable profile text. Shared addresses from the verification source are blocked; canonical account emails remain supported for active employees and HR. The service-only resolver is called by server sign-in/recovery routes and never exposes canonical addresses to anonymous callers.
