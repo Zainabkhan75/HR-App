@@ -2,7 +2,7 @@ export type Values=Record<string,string|null>
 export type EmployeeProfile={
  employee:{employee_no:string;full_name:string;designation:string|null;department:string|null;location:string|null;reports_to_text:string|null;employment_state:string}
  contacts:Values;personal:Values;employment:Values;rewards:Values;payroll_aug_2026:Values
- profile_updated_at:string|null
+ core_updated_at:string;profile_updated_at:string|null
 }
 export const contactFields=[
  {key:'mobile',label:'Mobile number',type:'tel',maxLength:64},
@@ -33,3 +33,17 @@ export const contactDraft=(values:Values):Record<string,string>=>Object.fromEntr
 export const contactPatch=(values:Values,draft:Record<string,string>):Record<string,string>=>Object.fromEntries(
  contactFields.filter(field=>(draft[field.key]??'').trim()!==(values[field.key]??'').trim()).map(field=>[field.key,(draft[field.key]??'').trim()])
 )
+
+export const editableProfileSections=[
+ {title:'Core information',fields:[['full_name','Full name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports to (recorded)']]},
+ {title:'Personal information',fields:[['cnic_passport','CNIC / passport'],['email','Work email']]},
+ {title:'Employment information',fields:[['employment_type','Employment type'],['date_of_joining','Date of joining'],['work_location_mobility','Work location / mobility'],['probation','Probation']]},
+] as const
+export const profileDraft=(profile:EmployeeProfile):Record<string,string>=>{
+ const values={...profile.employee,...profile.personal,...profile.employment}
+ return Object.fromEntries(editableProfileSections.flatMap(section=>section.fields.map(([key])=>[key,values[key as keyof typeof values]??''])))
+}
+export const profilePatch=(profile:EmployeeProfile,draft:Record<string,string>):Record<string,string>=>{
+ const baseline=profileDraft(profile)
+ return Object.fromEntries(editableProfileSections.flatMap(section=>section.fields.map(([key])=>key)).filter(key=>(draft[key]??'').trim()!==baseline[key].trim()).map(key=>[key,(draft[key]??'').trim()]))
+}

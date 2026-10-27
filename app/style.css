@@ -18,3 +18,9 @@ select,textarea{font:inherit;border:1px solid #cfd8e1;border-radius:7px;padding:
 .ess-form-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.ess-form-actions button{min-height:44px}
 .ess-shell button:focus-visible,.ess-shell input:focus-visible,.ess-shell textarea:focus-visible{outline:3px solid #b2d6f5;outline-offset:3px}
 @media(max-width:600px){.ess-nav{grid-template-columns:repeat(2,minmax(0,1fr))}.ess-shell .profile-grid{grid-template-columns:1fr}.ess-form-actions button{width:100%}.ess-header h1{font-size:22px}}
+
+.family-person{border:1px solid #dce4ec;border-radius:8px;padding:16px;margin:16px 0}.family-person legend{font-weight:700;padding:0 6px}
+.family-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}.family-fields label{min-width:0}.family-wide{grid-column:1/-1}
+.ess-shell [hidden]{display:none}.ess-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:600px){.family-fields{grid-template-columns:1fr}.ess-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+

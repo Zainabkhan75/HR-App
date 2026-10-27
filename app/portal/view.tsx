@@ -2,11 +2,13 @@
 import {useState} from 'react'
 import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
+import FamilyEditor from './family-editor'
+import ProfileEditor from './profile-editor'
 import {contactFields,employmentFields,rewardFields,payrollFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
-const tabs=[['profile','My profile'],['contact','Contact details'],['pay','Salary & benefits'],['payroll','Historical payroll']] as const
+const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['pay','Salary & benefits'],['payroll','Historical payroll']] as const
 type Tab=typeof tabs[number][0]
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
@@ -18,10 +20,13 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
  const [profile,setProfile]=useState(initialProfile)
  const [tab,setTab]=useState<Tab>('profile')
  const [draft,setDraft]=useState(()=>contactDraft(initialProfile.contacts))
+ const [contactVersion,setContactVersion]=useState(initialProfile.profile_updated_at)
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState('')
  const [notice,setNotice]=useState('')
  const [conflict,setConflict]=useState(false)
+ const [familyDirty,setFamilyDirty]=useState(false),[familyBusy,setFamilyBusy]=useState(false)
+ const [profileDirty,setProfileDirty]=useState(false),[profileBusy,setProfileBusy]=useState(false)
  const employee=profile.employee
  const changes=contactPatch(profile.contacts,draft)
  const dirty=Object.keys(changes).length>0
@@ -32,7 +37,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   setBusy(true);setError('');setNotice('')
   try{
    const {data,error:saveError}=await browserDb().rpc('update_my_contact_details',{
-    p_patch:changes,p_expected_updated_at:profile.profile_updated_at
+    p_patch:changes,p_expected_updated_at:contactVersion
    })
    if(saveError){
     const stale=saveError.code==='40001'
@@ -42,7 +47,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
    }
    if(!data){setError('We could not confirm the save. Reload your profile before trying again.');setConflict(true);return}
    const updated=data as EmployeeProfile
-   setProfile(updated);setDraft(contactDraft(updated.contacts))
+   setProfile(updated);setDraft(contactDraft(updated.contacts));setContactVersion(updated.profile_updated_at)
    setNotice('Contact details saved. The HR record has been updated.')
   }catch{
    setError('We could not confirm the save. Check your connection and reload your profile before trying again.')
@@ -57,15 +62,15 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
    const {data,error:loadError}=await browserDb().rpc('my_employee_profile')
    if(loadError||!data){setError('Could not reload your profile. Please try again.');return}
    const updated=data as EmployeeProfile
-   setProfile(updated);setDraft(contactDraft(updated.contacts));setConflict(false)
+   setProfile(updated);setDraft(contactDraft(updated.contacts));setContactVersion(updated.profile_updated_at);setConflict(false)
    setNotice('Latest profile loaded. Unsaved contact changes were cleared.')
   }catch{setError('Could not reload your profile. Please check your connection.')}
   finally{setBusy(false)}
  }
 
  async function logOut(){
-  if(busy)return
-  if(dirty&&!window.confirm('Sign out without saving your contact changes?'))return
+  if(busy||familyBusy||profileBusy)return
+  if((dirty||familyDirty||profileDirty)&&!window.confirm('Sign out without saving your changes?'))return
   setBusy(true);setError('')
   try{
    const {error:signOutError}=await browserDb().auth.signOut({scope:'local'})
@@ -75,18 +80,14 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
  }
 
  return <main className="mobile-shell ess-shell">
-  <header className="ess-header"><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div><button type="button" className="secondary" disabled={busy} onClick={()=>void logOut()}>Sign out</button></header>
-  <nav className="ess-nav" aria-label="Self-service sections">{tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{key==='contact'&&dirty?' *':''}</button>)}</nav>
+  <header className="ess-header"><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div><button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></header>
+  <nav className="ess-nav" aria-label="Self-service sections">{tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}</nav>
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div className="panel"><p>Reloading will clear your unsaved contact changes.</p><button type="button" disabled={busy} onClick={()=>void reloadProfile()}>Reload latest profile</button></div>:null}
 
-  {tab==='profile'?<section className="panel"><div className="ess-section-heading"><h2>My profile</h2><span className="ess-readonly">View only</span></div>
-   <FieldList fields={[[ 'full_name','Full name'],['employee_no','Employee ID'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports to (recorded)']]} values={employee}/>
-   <h3>Personal information</h3><FieldList fields={[[ 'cnic_passport','CNIC / passport'],['email','Work email']]} values={profile.personal}/>
-   <h3>Employment information</h3><FieldList fields={employmentFields} values={profile.employment}/>
-   <p className="muted">For corrections to identity or employment information, contact HR.</p>
-  </section>:null}
+  <ProfileEditor active={tab==='profile'} initialProfile={profile} onDirtyChange={setProfileDirty} onBusyChange={setProfileBusy} onSaved={updated=>{setProfile(updated);if(!dirty){setDraft(contactDraft(updated.contacts));setContactVersion(updated.profile_updated_at)}}}/>
+  <FamilyEditor active={tab==='family'} onDirtyChange={setFamilyDirty} onBusyChange={setFamilyBusy}/>
 
   {tab==='contact'?<section className="panel"><h2>My contact details</h2><p>You can update these details directly. Changes are saved to your HR record.</p>
    <form onSubmit={saveContact} className="ess-contact-form">
@@ -109,3 +110,4 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   {isManager?<section className="panel"><h2>My team</h2>{teamUnavailable?<p role="alert">Your team could not be loaded. Please try again later.</p>:team.length===0?<p>No verified direct reports have been linked yet.</p>:<ul className="team-list">{team.map(member=><li key={member.employee_no}><strong>{member.full_name}</strong><span>{member.employee_no} · {display(member.designation)}</span></li>)}</ul>}</section>:null}
  </main>
 }
+
