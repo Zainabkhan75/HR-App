@@ -1,23 +1,33 @@
 'use client'
 
-import {useState} from 'react'
+import {useEffect,useState} from 'react'
 import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
+import {RECOVERY_ORIGIN} from '../../lib/recovery-url'
 
 export default function ForgotPassword(){
+ const [onRecoveryOrigin,setOnRecoveryOrigin]=useState(false)
  const [email,setEmail]=useState('')
  const [busy,setBusy]=useState(false)
  const [sent,setSent]=useState(false)
  const [error,setError]=useState('')
 
+ useEffect(()=>{
+  if(window.location.origin!==RECOVERY_ORIGIN){
+   window.location.replace(new URL('/forgot-password',RECOVERY_ORIGIN).href)
+  }else{
+   setOnRecoveryOrigin(true)
+  }
+ },[])
+
  async function sendReset(event:FormEvent<HTMLFormElement>){
   event.preventDefault()
-  if(busy)return
+  if(busy||!onRecoveryOrigin)return
   setBusy(true)
   setError('')
   try{
    const {error:resetError}=await browserDb().auth.resetPasswordForEmail(email.trim(),{
-    redirectTo:new URL('/reset-password',window.location.origin).href
+    redirectTo:new URL('/reset-password',RECOVERY_ORIGIN).href
    })
    if(resetError){
     setError(resetError.status===429
@@ -44,7 +54,7 @@ export default function ForgotPassword(){
    <p>Enter the email registered for your HRMS account.</p>
    <label>Registered email<input type="email" autoComplete="email" required maxLength={254} value={email} onChange={event=>setEmail(event.target.value)} disabled={busy}/></label>
    {error?<p className="error" role="alert">{error}</p>:null}
-   <button type="submit" disabled={busy}>{busy?'Sending...':'Send reset link'}</button>
+   <button type="submit" disabled={busy||!onRecoveryOrigin}>{busy?'Sending...':'Send reset link'}</button>
   </form>}
   <p className="recovery-help">No email registered, or no access to that inbox? Contact HR to verify your identity and help reset your password.</p>
   <nav className="recovery-links" aria-label="Account recovery"><a href="/login">Back to sign in</a><a href="/forgot-username">Forgot username?</a></nav>

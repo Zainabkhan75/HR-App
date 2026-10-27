@@ -3,6 +3,7 @@
 import {useEffect,useRef,useState} from 'react'
 import type {FormEvent} from 'react'
 import {recoveryDb} from '../../lib/recovery'
+import {recoveryInput,recoveryLanding,RECOVERY_ORIGIN} from '../../lib/recovery-url'
 
 export default function ResetPassword(){
  const client=useRef<ReturnType<typeof recoveryDb>|null>(null)
@@ -18,18 +19,23 @@ export default function ResetPassword(){
   let mounted=true
   if(!verification.current){
    const url=new URL(window.location.href)
-   const code=url.searchParams.get('code')
-   const tokenHash=url.searchParams.get('token_hash')
-   const isRecoveryHash=url.searchParams.get('type')==='recovery'
-   const hasError=url.searchParams.has('error')||url.hash.includes('error=')
+   if(url.origin!==RECOVERY_ORIGIN){
+    const destination=recoveryLanding(url)
+    window.location.replace(destination??new URL('/forgot-password',RECOVERY_ORIGIN).href)
+    return
+   }
+   const input=recoveryInput(url)
+   // Strip credentials before creating a client with automatic URL detection.
+   window.history.replaceState(null,'','/reset-password')
    verification.current=(async()=>{
-    if(hasError||(!code&&!(tokenHash&&isRecoveryHash)))return false
-    window.history.replaceState(null,'','/reset-password')
+    if(input.kind==='invalid')return false
     const db=recoveryDb()
     client.current=db
-    const result=code
-     ?await db.auth.exchangeCodeForSession(code)
-     :await db.auth.verifyOtp({token_hash:tokenHash!,type:'recovery'})
+    const result=input.kind==='code'
+     ?await db.auth.exchangeCodeForSession(input.code)
+     :input.kind==='token_hash'
+      ?await db.auth.verifyOtp({token_hash:input.tokenHash,type:'recovery'})
+      :await db.auth.setSession({access_token:input.accessToken,refresh_token:input.refreshToken})
     if(result.error||!result.data.session)return false
     const {data:{user},error:userError}=await db.auth.getUser()
     return !userError&&!!user
