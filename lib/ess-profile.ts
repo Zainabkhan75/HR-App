@@ -14,6 +14,12 @@ export const employmentFields=[
  ['employment_type','Employment type'],['date_of_joining','Date of joining'],
  ['work_location_mobility','Work location / mobility'],['probation','Probation'],
 ] as const
+export const backgroundSections=[
+ {title:'Personal information',fields:[['date_of_birth','Date of birth (as submitted)'],['permanent_address','Permanent address']]},
+ {title:'Emergency contact',fields:[['emergency_contact_full_name','Full name'],['emergency_contact_relationship','Relationship'],['primary_emergency_contact_number','Primary number'],['alternative_emergency_number','Alternative number']]},
+ {title:'Previous employment',fields:[['previous_employer_company_name','Employer / company'],['previous_designation','Designation'],['previous_employment_start','From (as submitted)'],['previous_employment_end','To (as submitted)']]},
+ {title:'Education',fields:[['latest_education','Qualification and institution'],['education_start','From (as submitted)'],['education_end','To (as submitted)']]},
+] as const
 export const rewardFields=[
  ['gross_salary_month_pkr','Gross salary / month (PKR)'],['fuel_month_pkr','Fuel / month (PKR)'],
  ['car_allowance_month_pkr','Car allowance / month (PKR)'],['total_package_month_pkr','Total package / month (PKR)'],

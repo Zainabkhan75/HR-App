@@ -4,11 +4,11 @@ import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import FamilyEditor from './family-editor'
 import ProfileEditor from './profile-editor'
-import {contactFields,employmentFields,rewardFields,payrollFields,contactDraft,contactPatch} from '../../lib/ess-profile'
+import {backgroundSections,contactFields,employmentFields,rewardFields,payrollFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
-const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['pay','Salary & benefits'],['payroll','Historical payroll']] as const
+const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['background','Emergency & background'],['pay','Salary & benefits'],['payroll','Historical payroll']] as const
 type Tab=typeof tabs[number][0]
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
@@ -88,6 +88,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
 
   <ProfileEditor active={tab==='profile'} initialProfile={profile} onDirtyChange={setProfileDirty} onBusyChange={setProfileBusy} onSaved={updated=>{setProfile(updated);if(!dirty){setDraft(contactDraft(updated.contacts));setContactVersion(updated.profile_updated_at)}}}/>
   <FamilyEditor active={tab==='family'} onDirtyChange={setFamilyDirty} onBusyChange={setFamilyBusy}/>
+  {tab==='background'?<section className="panel"><h2>Emergency & background</h2><p>Details submitted through the employee verification form. Contact HR if these need correction.</p>{backgroundSections.map(section=><div key={section.title}><h3>{section.title}</h3><FieldList fields={section.fields} values={profile.personal}/></div>)}</section>:null}
 
   {tab==='contact'?<section className="panel"><h2>My contact details</h2><p>You can update these details directly. Changes are saved to your HR record.</p>
    <form onSubmit={saveContact} className="ess-contact-form">
