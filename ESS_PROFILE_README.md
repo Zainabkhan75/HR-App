@@ -1,27 +1,35 @@
-# ESS profile and family release
+# ESS profile release
 
-Employees open /portal after signing in. All save/read RPCs resolve the employee from auth.uid(); no target employee ID is accepted. Active account linkage and completed password setup are required; inactive employee records are denied.
+Employees open /portal after signing in. Only their own linked, active employee account is used; the profile endpoints take no target employee ID. Password setup must be complete, and inactive employment records are denied.
 
-## Editable information
-- My profile: name, designation, department, location, recorded reporting-line text, CNIC/passport, work email, employment type, date of joining, mobility and probation.
-- Contact details: mobile, personal mobile, personal email and address.
-- Family & dependants: one optional spouse and a list of children, each with name, age in whole years, pre-existing conditions and CNIC.
-- CNIC is mandatory strictly over 18 years and optional at 18 or younger. Any CNIC provided must contain 13 digits; hyphens/spaces are normalised.
-- Empty health-condition fields mean not provided; the form suggests entering None when no conditions apply.
+## Employee capabilities
+- View personal and employment information.
+- Edit mobile, personal mobile, personal email and personal address directly.
+- View salary and benefits, plus the explicitly historical August 2026 payroll snapshot.
+- Changing a profile contact email does not change Supabase Auth login credentials.
+- Edit profile identity, organisation and employment fields directly; employee ID, compensation and access permissions remain protected.
+- Edit one spouse and multiple children in the Family tab; CNIC is required for dependants over 18.
 
-Employee ID, salary, benefits and historical payroll remain read-only. Editing profile emails does not change Auth credentials. Reporting-line text edits do not grant manager roles or change verified manager-team mappings.
+## Database
+The migration adds a private implementation schema, two authenticated public RPC wrappers, and an RLS-protected employee_contact_audit table. It changes no existing records or existing policies.
+Update patches allow only the four contact keys, merge into the existing profile JSON and require the last-read updated_at timestamp. Each changed save adds an audit entry in the same transaction. Empty/no-op saves add none.
 
-## Storage and access
-Family and medical data are in employee_family_details, not in broadly returned profile JSON. Only own-employee RPCs return family details. HR can read the table through its existing HR role; managers receive no dependent/medical access to their teams.
-Family/profile audit tables record actor, timestamp and changed-field/count metadata without copying medical text or CNIC values.
-Existing contact edits retain their transactional before/after audit history.
-
-All saves use optimistic concurrency timestamps and controlled JSON field allowlists. Contact, profile and family drafts are preserved when switching sections. Reload controls explicitly clear unsaved edits after conflicts.
+HR administrators can inspect contact history in employee_contact_audit through their existing HR role; employees can read only their own history.
 
 ## Verification
-- node --test tests/ess-profile.test.mjs tests/family-profile.test.mjs
-- Production builds validate TSX and types.
-- Database checks ran in transactions that were rolled back, covering adult CNIC rules, age validation, single-spouse object enforcement, multiple children, own-record isolation, read-only salary/ID/role fields, contact preservation and stale-write rejection.
-- Employee/detail row fingerprints and empty family/audit tables are checked after rollback.
+Run client field-filter tests with:
+`node --test tests/ess-profile.test.mjs`
 
-Existing legacy-function security warnings remain outside this release. No employee record, account activation or existing policy is bulk modified.
+Production database verification used rolled-back transactions to test own-profile access, anonymous and unlinked-user rejection, disabled-account and first-login gates, protected fields, invalid email rejection, stale-write rejection, audit creation, no-op behavior and preservation of salary/payroll JSON. The original details fingerprint and account flags were checked after rollback.
+
+Existing security advisor warnings in older functions are not modified by this release. In particular, tightening legacy function grants and enforcing password-change completion independently of the existing confirmation RPC should be handled separately.
+
+## Scope
+HR approval, leave workflows, bulk account provisioning and corrections to imported employee data are not part of this release.
+
+## Profile dropdowns and employment inputs
+Department, location and recorded reporting line use distinct current employee values. Employment type and mobility include existing source categories, retained when their last user changes category; Permanent is also available by request. No matching of recorded reporting titles to manager identities is performed.
+
+Selecting Permanent sets probation to 3 months. Other employment types accept a blank value or whole months from 0 through 6. Newly entered joining dates use DD/MM/YYYY and must be real calendar dates. Existing imported dates and probation text remain unchanged until explicitly edited. The client and authenticated server wrapper validate changed values; the existing private profile save implementation is retained.
+
+The dropdown migrations change functions only. Integration checks run in rolled-back transactions, including Permanent defaults, bounds, leap dates, access rejection and compensation preservation. Run all local checks with `node --test tests/*.test.mjs`.
