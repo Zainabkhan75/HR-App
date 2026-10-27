@@ -8,3 +8,13 @@ select,textarea{font:inherit;border:1px solid #cfd8e1;border-radius:7px;padding:
 .recovery-action{display:inline-block;background:#15568e;color:#fff;text-decoration:none;border-radius:7px;padding:12px 17px;font-weight:600;margin:8px 0}
 .recovery-help{font-size:13px;line-height:1.5;margin-top:22px}
 .login h1{overflow-wrap:anywhere}.login h2{font-size:18px;margin-top:24px}.login p{line-height:1.5}
+
+.ess-shell{max-width:820px}.ess-header{margin-bottom:0;align-items:flex-start}.ess-header>div{min-width:0}.ess-header h1{overflow-wrap:anywhere}
+.ess-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.ess-nav button{min-height:48px;background:#e9edf2;color:#24384d;padding:10px;font-size:14px}
+.ess-nav .ess-nav-active{background:#15568e;color:#fff}.ess-section-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ess-readonly{font-size:12px;color:#596b7b;background:#eef2f6;padding:5px 9px;border-radius:20px}.ess-field{min-width:0;display:grid;gap:5px;padding:10px 0;border-bottom:1px solid #edf0f4}
+.ess-field dd{overflow-wrap:anywhere;white-space:pre-wrap}.ess-shell .profile-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+.ess-shell h3{font-size:16px;margin-top:28px}.ess-contact-form{max-width:580px}.ess-contact-form input,.ess-contact-form textarea{min-height:44px}
+.ess-form-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.ess-form-actions button{min-height:44px}
+.ess-shell button:focus-visible,.ess-shell input:focus-visible,.ess-shell textarea:focus-visible{outline:3px solid #b2d6f5;outline-offset:3px}
+@media(max-width:600px){.ess-nav{grid-template-columns:repeat(2,minmax(0,1fr))}.ess-shell .profile-grid{grid-template-columns:1fr}.ess-form-actions button{width:100%}.ess-header h1{font-size:22px}}
