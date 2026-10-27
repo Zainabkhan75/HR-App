@@ -5,11 +5,11 @@ export const memberDraft=(member?:FamilyMember):MemberDraft=>({key:crypto.random
 export function memberValue(draft:MemberDraft):FamilyMember{
  return {full_name:draft.full_name.trim(),age:Number(draft.age),pre_existing_conditions:draft.pre_existing_conditions.trim(),cnic:draft.cnic.replace(/[-\s]/g,'')}
 }
-export function memberError(draft:MemberDraft):string{
+export function memberError(draft:MemberDraft,isSpouse=false):string{
  if(!draft.full_name.trim())return 'Enter a name for each dependant.'
  if(draft.age.trim()===''||!Number.isInteger(Number(draft.age))||Number(draft.age)<0)return 'Enter age in whole years for each dependant.'
  const cnic=draft.cnic.replace(/[-\s]/g,'')
- if(Number(draft.age)>18&&!cnic)return 'CNIC is required for every dependant over 18.'
+ if((isSpouse||Number(draft.age)>=18)&&!cnic)return 'CNIC is required for every spouse and children aged 18 or older.'
  if(cnic&&!/^[0-9]{13}$/.test(cnic))return 'CNIC must contain 13 digits, with or without hyphens.'
  return ''
 }

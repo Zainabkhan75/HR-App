@@ -4,7 +4,7 @@ import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import {editableProfileSections,profileDraft,profilePatch} from '../../lib/ess-profile'
 import type {EmployeeProfile} from '../../lib/ess-profile'
-import {isDropdown,employmentChoice,validJoiningDate,validProbation,selectChoices} from '../../lib/profile-inputs'
+import {reportingTitle,isDropdown,employmentChoice,validJoiningDate,validProbation,selectChoices} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChange,onBusyChange}:{active:boolean;initialProfile:EmployeeProfile;onSaved:(value:EmployeeProfile)=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
  const [base,setBase]=useState(initialProfile),[draft,setDraft]=useState(()=>profileDraft(initialProfile))
@@ -67,7 +67,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
     {key==='probation'?'Probation (months)':label}
     {isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value}))}>
      <option value="">{options?'Select an option':'Loading options...'}</option>
-     {selectChoices(options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{option}</option>)}
+     {selectChoices(options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{key==='reports_to_text'?reportingTitle(option):option}</option>)}
     </select>:key==='probation'?<>
      <input type="number" min={0} max={6} step={1} inputMode="numeric" value={validProbation(draft.probation)?draft.probation:''} readOnly={draft.employment_type==='Permanent'} disabled={busy} placeholder="0 to 6" aria-describedby="probation-help" onChange={event=>setDraft(old=>({...old,probation:event.target.value}))}/>
      <span id="probation-help" className="field-hint">{draft.employment_type==='Permanent'?'Permanent: 3 months.':!validProbation(draft.probation)?'Current recorded text: '+draft.probation+'. Enter 0–6 months to replace it.':'Enter a whole number from 0 to 6 months.'}</span>

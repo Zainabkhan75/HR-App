@@ -16,3 +16,10 @@ export function validJoiningDate(value:string):boolean{
 }
 export function validProbation(value:string):boolean{return value===''||/^[0-6]$/.test(value)}
 export const selectChoices=(values:readonly string[],current:string):string[]=>Array.from(new Set([...values,...(current&&!values.includes(current)?[current]:[])]))
+
+export function reportingTitle(value:string):string{
+ const clean=value.replace(/\s*\([^)]*\)/g,'').trim()
+ const pieces=clean.split(' - ')
+ if(pieces.length<2)return clean
+ return clean.startsWith('Store Manager,')?pieces[0].trim():pieces.slice(1).join(' - ').trim()
+}

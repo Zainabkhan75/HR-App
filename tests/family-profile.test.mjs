@@ -9,8 +9,10 @@ function helpers(path){
 const family=helpers('../lib/family-profile.ts')
 const profile=helpers('../lib/ess-profile.ts')
 const person=age=>({key:'synthetic-key',full_name:'Synthetic dependant',age:String(age),cnic:'',pre_existing_conditions:''})
-test('CNIC optional at 18, mandatory strictly over 18',()=>{
- assert.equal(family.memberError(person(18)),'')
+test('CNIC mandatory at 18 and for every spouse',()=>{
+ assert.match(family.memberError(person(18)),/CNIC is required/)
+ assert.match(family.memberError(person(17),true),/CNIC is required/)
+ assert.equal(family.memberError({...person(17),cnic:'0000000000000'},true),'')
  assert.match(family.memberError(person(19)),/CNIC is required/)
  assert.equal(family.memberError(person(4)),'')
 })

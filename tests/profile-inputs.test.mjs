@@ -24,3 +24,10 @@ test('options preserve an existing recorded value and remove duplicates',()=>{
  assert.deepEqual(selectChoices(['A','B','A'],'Legacy'),['A','B','Legacy'])
  assert.deepEqual(selectChoices(['A','B'],'A'),['A','B'])
 })
+
+test('reporting choices show role text without names or chart notes',()=>{
+ assert.equal(exported.reportingTitle('Synthetic Person - HR Manager (chart spelling)'),'HR Manager')
+ assert.equal(exported.reportingTitle('Store Manager, Example - Synthetic Person'),'Store Manager, Example')
+ assert.equal(exported.reportingTitle('Finance Manager (identity unconfirmed)'),'Finance Manager')
+ assert.equal(exported.reportingTitle('CEO'),'CEO')
+})
