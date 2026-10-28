@@ -1,0 +1,10 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {readFileSync} from 'node:fs'
+import ts from 'typescript'
+const source=readFileSync(new URL('../lib/admin-reports.ts',import.meta.url),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,helpers={};new Function('exports',compiled)(helpers)
+const input={employees:[{id:'e',employee_no:'100006',full_name:'Test Person',department:'Retail Operations'}],details:[{employee_id:'e',profile:{gross_salary_month_pkr:0,custom_field:'kept'},payroll_aug_2026:{payroll_fixed_salary_aug_2026_pkr:'90000',payroll_column_e_identifier_as_recorded:'001234'}}],accounts:[],families:[]}
+test('current salary preserves zero and never falls back to historical payroll',()=>{const r=helpers.buildReports(input).payroll.rows[0];assert.equal(r['Monthly gross salary (PKR)'],'0');assert.equal(r['Monthly total package (PKR)'],'');assert.equal(r['Historical Aug 2026 / Fixed salary pkr'],'90000')})
+test('ambiguous payroll identifiers are not presented as bank accounts',()=>{const r=helpers.buildReports(input).payroll.rows[0];assert.equal(r['Account number'],'');assert.equal(r['Transfer method'],'')})
+test('explicit bank account numbers retain leading zeros and unknown fields survive full dump',()=>{const d=structuredClone(input);d.details[0].profile.bank_account_number='000123456';d.details[0].profile.salary_transfer_method='Bank transfer';const reports=helpers.buildReports(d);assert.equal(reports.payroll.rows[0]['Account number'],'000123456');assert.equal(reports.payroll.rows[0]['Transfer method'],'Bank transfer');assert.equal(reports.full.rows[0]['Details / Profile / Custom field'],'kept')})
+test('CSV quotes commas/newlines and neutralises spreadsheet formulas',()=>{const csv=helpers.reportCsv({columns:['Name','Account'],rows:[{Name:'=1+1',Account:'00123'},{Name:'Name, with "quotes"\nand line',Account:'+malicious'}]});assert.ok(csv.includes('\"\'=1+1\"'));assert.ok(csv.includes('\"00123\"'));assert.ok(csv.includes('Name, with \"\"quotes\"\"\nand line'));assert.ok(csv.includes('\"\'+malicious\"'))})
