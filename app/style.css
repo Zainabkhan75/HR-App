@@ -39,3 +39,4 @@ select,textarea{font:inherit;border:1px solid #cfd8e1;border-radius:7px;padding:
 
 
 .report-table{max-height:65vh;overflow:auto}.report-table th{position:sticky;top:0;z-index:1;background:#eef2f4;min-width:150px;white-space:normal}.report-table td{max-width:420px;min-width:150px;white-space:pre-wrap;overflow-wrap:anywhere;vertical-align:top}.report-table th:first-child,.report-table td:first-child{position:sticky;left:0;min-width:120px;background:#f8fafb}.report-table th:first-child{z-index:2}.report-caption{text-align:left;padding:8px;font-weight:600}.report-pager{margin-top:16px}
+.bulk-change{padding:7px 0;border-bottom:1px solid #e5eaf0;overflow-wrap:anywhere}.bulk-change:last-child{border-bottom:0}.bulk-change .muted{white-space:pre-wrap}
