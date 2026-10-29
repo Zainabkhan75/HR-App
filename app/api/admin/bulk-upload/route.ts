@@ -17,17 +17,17 @@ export async function POST(request:Request){
   const bytes=Buffer.from(await file.arrayBuffer()),hash=fileHash(bytes),snapshot=await readSnapshot(ctx.db),fields=fieldsFor(snapshot)
   const rows=await parseWorkbook(bytes,fields),planned=planUpload(rows,snapshot,fields)
   if(action==='preview'){
-   const token=signPreview({hash,expires:Date.now()+30*60*1000,timestamps:planned.map(r=>({employeeNo:r.employeeNo,core:r.expectedCoreUpdatedAt,details:r.expectedDetailsUpdatedAt,family:r.expectedFamilyUpdatedAt}))})
+   const token=signPreview({hash,expires:Date.now()+30*60*1000,timestamps:planned.map(r=>({reference:r.reference,action:r.action,employeeNo:r.employeeNo,core:r.expectedCoreUpdatedAt,details:r.expectedDetailsUpdatedAt,family:r.expectedFamilyUpdatedAt}))})
    return json({rows:planned,token,totals:{employees:planned.length,fill:planned.reduce((n,r)=>n+r.fill,0),replace:planned.reduce((n,r)=>n+r.overwrite,0),skipped:planned.reduce((n,r)=>n+r.skipped,0)}})
   }
   const token=form.get('token');if(typeof token!=='string')return json({error:'Preview required'},400)
-  const signed=verifyPreview(token,hash),byId=new Map(signed.timestamps.map(t=>[t.employeeNo,t]))
-  if(byId.size!==planned.length||planned.some(r=>{const t=byId.get(r.employeeNo);return !t||t.core!==r.expectedCoreUpdatedAt||t.details!==r.expectedDetailsUpdatedAt||t.family!==r.expectedFamilyUpdatedAt}))return json({error:'Employee data changed since preview. Preview the upload again'},409)
-  const changes=planned.filter(r=>r.fill+r.overwrite>0)
+  const signed=verifyPreview(token,hash),byId=new Map(signed.timestamps.map(t=>[t.reference||t.employeeNo,t]))
+  if(byId.size!==planned.length||planned.some(r=>{const t=byId.get(r.reference);return !t||(t.action||'UPDATE')!==r.action||t.core!==r.expectedCoreUpdatedAt||t.details!==r.expectedDetailsUpdatedAt||t.family!==r.expectedFamilyUpdatedAt}))return json({error:'Employee data changed since preview. Preview the upload again'},409)
+  const changes=planned.filter(r=>r.action==='NEW'||r.fill+r.overwrite>0)
   if(!changes.length)return json({applied:0,fields:0})
-  const payload=changes.map(r=>({employee_no:r.employeeNo,expected_core_updated_at:r.expectedCoreUpdatedAt,expected_details_updated_at:r.expectedDetailsUpdatedAt,expected_family_updated_at:r.expectedFamilyUpdatedAt,replace:r.replace,core:r.core,profile:r.profile,payroll:r.payroll,family:r.family}))
-  const {data,error}=await serviceDb().rpc('apply_employee_bulk_upload',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
+  const payload=changes.map(r=>({action:r.action,reference:r.reference,employee_no:r.employeeNo,expected_core_updated_at:r.expectedCoreUpdatedAt,expected_details_updated_at:r.expectedDetailsUpdatedAt,expected_family_updated_at:r.expectedFamilyUpdatedAt,replace:r.replace,core:r.core,profile:r.profile,payroll:r.payroll,family:r.family}))
+  const {data,error}=await serviceDb().rpc('apply_employee_bulk_upload_v2',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
   if(error) return json({error:'Upload was not applied. Employee data may have changed; preview again.',detail:error.message},409)
-  return json({applied:changes.length,fields:data?.fields??changes.reduce((n,r)=>n+r.fill+r.overwrite,0)})
+  return json({applied:changes.length,fields:data?.fields??changes.reduce((n,r)=>n+r.fill+r.overwrite,0),created:data?.created??[],newEmployees:data?.created?.length??0})
  }catch(error){return json({error:error instanceof Error?error.message:'Upload failed'},400)}
 }
