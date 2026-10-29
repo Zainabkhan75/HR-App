@@ -27,7 +27,7 @@ const reserved=new Set([ID_HEADER,MODE_HEADER])
 export function fieldsFor(snapshot:Snapshot):Field[]{
  const profile=new Map<string,string>(),payroll=new Map<string,string>()
  for(const section of sections)for(const label of section.labels){const key=fieldKey(label);(payrollKeys.has(label)?payroll:profile).set(key,label)}
- for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!profile.has(key))profile.set(key,key.replaceAll('_',' '));for(const key of Object.keys(detail.payroll_aug_2026??{}))if(!payroll.has(key))payroll.set(key,key.replaceAll('_',' '))}
+ for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!['reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key)&&!profile.has(key))profile.set(key,key.replaceAll('_',' '));for(const key of Object.keys(detail.payroll_aug_2026??{}))if(!payroll.has(key))payroll.set(key,key.replaceAll('_',' '))}
  return [...coreFields,...[...profile].map(([key,label])=>({header:`Profile | ${label}`,bucket:'profile' as const,key})),...[...payroll].map(([key,label])=>({header:`August 2026 Payroll | ${label}`,bucket:'payroll' as const,key}))]
 }
 export function cellText(value:unknown):string{
