@@ -10,8 +10,8 @@ export type FamilyMember={full_name:string;age:number;pre_existing_conditions:st
 export type FamilyRecord={employee_id:string;spouse:FamilyMember|null;children:FamilyMember[]|null;updated_at:string}
 export type Snapshot={employees:EmployeeRow[];details:DetailRow[];families?:FamilyRecord[]}
 export type FamilyInput={type:'Spouse'|'Child';childNumber:number;replace:boolean;values:Record<string,string>}
-export type UploadRow={employeeNo:string;name:string;replace:boolean;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;family:FamilyInput[]}
-export type PlannedRow={employeeNo:string;name:string;replace:boolean;expectedCoreUpdatedAt:string;expectedDetailsUpdatedAt:string;expectedFamilyUpdatedAt:string|null;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;family:FamilyInput[];fill:number;overwrite:number;skipped:number;unchanged:number;changes:{field:string;before:string;after:string;action:'fill'|'replace'|'skip'}[]}
+export type UploadRow={action?:'NEW'|'UPDATE';reference?:string;employeeNo:string;name:string;replace:boolean;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;family:FamilyInput[]}
+export type PlannedRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string;name:string;replace:boolean;expectedCoreUpdatedAt:string;expectedDetailsUpdatedAt:string;expectedFamilyUpdatedAt:string|null;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;family:FamilyInput[];fill:number;overwrite:number;skipped:number;unchanged:number;changes:{field:string;before:string;after:string;action:'fill'|'replace'|'skip'}[]}
 
 const coreFields:Field[]=[
  {header:'Employee Name',bucket:'core',key:'full_name'},
@@ -22,8 +22,10 @@ const coreFields:Field[]=[
 ]
 export const ID_HEADER='Employee ID'
 export const MODE_HEADER='Replace existing values? (YES/NO)'
-const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC']
-const reserved=new Set([ID_HEADER,MODE_HEADER])
+export const ACTION_HEADER='Action (NEW/UPDATE)'
+export const REF_HEADER='Upload reference'
+const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC',REF_HEADER]
+const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER])
 export function fieldsFor(snapshot:Snapshot):Field[]{
  const profile=new Map<string,string>(),payroll=new Map<string,string>()
  for(const section of sections)for(const label of section.labels){const key=fieldKey(label);(payrollKeys.has(label)?payroll:profile).set(key,label)}
@@ -51,7 +53,10 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  const book=new ExcelJS.Workbook(),guide=book.addWorksheet('Instructions'),sheet=book.addWorksheet('Employees'),reference=book.addWorksheet('Current data'),familySheet=book.addWorksheet('Family'),familyReference=book.addWorksheet('Current family')
  guide.addRow(['Bandana employee bulk upload'])
  for(const line of [
-  'Match rows by the six-digit Employee ID. Employee Name is included for review and may be corrected.',
+  'Choose UPDATE for an existing employee and enter their six-digit Employee ID. YES/NO keeps its existing replacement behaviour.',
+  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name, department and designation. An Active employee ID is assigned only when you apply.',
+  'Give each NEW row a unique Upload reference such as NEW-01 if adding family rows; repeat that reference on the Family sheet with Employee ID blank.',
+  'Potential duplicates by name, CNIC or email must be resolved before applying. Login creation remains a separate step.',
   'The Employees and Family sheets contain the latest saved values at download time. Edit only the values you want to change.',
   'Blank upload cells do not erase stored values. The Current data and Current family sheets preserve a download-time reference.',
   'Set Replace existing values? to YES for an employee only when differing populated values should be overwritten. NO fills empty fields only.',
@@ -61,14 +66,14 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
   'Employee status, account login, passwords, leave settings and audit records use separate workflows.',
  ])guide.addRow([line])
  guide.getColumn(1).width=115;guide.getRow(1).font={bold:true,size:16,color:{argb:'FF15568E'}}
- const fields=fieldsFor(snapshot),headers=[ID_HEADER,MODE_HEADER,...fields.map(f=>f.header)]
+ const fields=fieldsFor(snapshot),headers=[ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,...fields.map(f=>f.header)]
  sheet.addRow(['Latest saved values are prefilled. Edit this copy, then upload it. Row 2 contains column headings; data starts on row 3.'])
  sheet.addRow(headers);reference.addRow(['Reference only. Current values at download time; edits on this sheet are not uploaded.']);reference.addRow(headers)
  const details=new Map(snapshot.details.map(d=>[d.employee_id,d]))
  for(const employee of snapshot.employees){const detail=details.get(employee.id),profile=detail?.profile??{},payroll=detail?.payroll_aug_2026??{}
-  const row=sheet.addRow([employee.employee_no,'NO',...fields.map(f=>cellText(f.bucket==='core'?employee[f.key as keyof EmployeeRow]:f.bucket==='profile'?profile[f.key]:payroll[f.key]))])
+  const row=sheet.addRow([employee.employee_no,'NO','UPDATE','',...fields.map(f=>cellText(f.bucket==='core'?employee[f.key as keyof EmployeeRow]:f.bucket==='profile'?profile[f.key]:payroll[f.key]))])
   row.getCell(1).numFmt='@';row.getCell(1).alignment={horizontal:'left'}
-  reference.addRow([employee.employee_no,'',...fields.map(f=>cellText(f.bucket==='core'?employee[f.key as keyof EmployeeRow]:f.bucket==='profile'?profile[f.key]:payroll[f.key]))])
+  reference.addRow([employee.employee_no,'','UPDATE','',...fields.map(f=>cellText(f.bucket==='core'?employee[f.key as keyof EmployeeRow]:f.bucket==='profile'?profile[f.key]:payroll[f.key]))])
  }
  sheet.views=[{state:'frozen',xSplit:2,ySplit:2}]
  sheet.getRow(1).font={bold:true,color:{argb:'FF15568E'}};sheet.getRow(1).height=28
@@ -76,7 +81,11 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  sheet.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF15568E'}};cell.alignment={vertical:'middle',wrapText:true}})
  sheet.getColumn(1).width=17;sheet.getColumn(2).width=32
  for(let c=3;c<=headers.length;c++)sheet.getColumn(c).width=c===3?28:25
- for(let r=3;r<=Math.max(1000,sheet.rowCount);r++)sheet.getCell(r,2).dataValidation={type:'list',allowBlank:false,formulae:['"NO,YES"'],showErrorMessage:true,error:'Choose NO or YES'}
+ sheet.getColumn(3).width=24;sheet.getColumn(4).width=24;sheet.getColumn(5).width=30
+ for(let r=3;r<=Math.max(1000,sheet.rowCount);r++){
+  sheet.getCell(r,2).dataValidation={type:'list',allowBlank:true,formulae:['"NO,YES"'],showErrorMessage:true,error:'UPDATE: choose NO or YES. NEW: leave blank.'}
+  sheet.getCell(r,3).dataValidation={type:'list',allowBlank:true,formulae:['"NEW,UPDATE"'],showErrorMessage:true,error:'Choose NEW or UPDATE'}
+ }
  sheet.autoFilter={from:{row:2,column:1},to:{row:sheet.rowCount,column:headers.length}}
  reference.views=[{state:'frozen',xSplit:2,ySplit:2}];reference.getRow(2).font={bold:true,color:{argb:'FFFFFFFF'}};reference.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF607488'}};cell.alignment={wrapText:true}});reference.getColumn(1).width=17;reference.getColumn(2).width=15;for(let c=3;c<=headers.length;c++)reference.getColumn(c).width=c===3?28:25
  familySheet.addRow(['Existing family values are prefilled. Add a spouse or child on a new row. Use Child Number 1, 2, 3... in order.']);familySheet.addRow(familyHeaders)
@@ -97,13 +106,24 @@ export async function parseWorkbook(bytes:Buffer,fields:Field[]):Promise<UploadR
  const known=new Map(fields.map(f=>[f.header,f]));const headers=new Map<string,number>()
  sheet.getRow(2).eachCell({includeEmpty:false},(cell,col)=>{const header=inputText(cell);if(headers.has(header))throw Error(`Duplicate column: ${header}`);if(header&&!known.has(header)&&!reserved.has(header))throw Error(`Unknown column: ${header}`);headers.set(header,col)})
  if(!headers.has(ID_HEADER)||!headers.has('Employee Name')||!headers.has(MODE_HEADER))throw Error('Employee ID, Employee Name and replacement choice columns are required')
- const result:UploadRow[]=[],seen=new Set<string>()
- for(let r=3;r<=sheet.rowCount;r++){const row=sheet.getRow(r),employeeNo=inputText(row.getCell(headers.get(ID_HEADER)!));if(!employeeNo){if(hasData(row))throw Error(`Row ${r}: Employee ID is required`);continue}
-  if(!/^\d{6}$/.test(employeeNo))throw Error(`Row ${r}: Employee ID must be six digits`)
-  if(seen.has(employeeNo))throw Error(`Employee ID ${employeeNo} appears more than once`);seen.add(employeeNo)
+ const result:UploadRow[]=[],seen=new Set<string>(),references=new Set<string>()
+ for(let r=3;r<=sheet.rowCount;r++){
+  const row=sheet.getRow(r);if(!hasData(row))continue
+  const employeeNo=inputText(row.getCell(headers.get(ID_HEADER)!))
+  const action=(headers.has(ACTION_HEADER)?inputText(row.getCell(headers.get(ACTION_HEADER)!)).toUpperCase():'UPDATE')||'UPDATE'
+  if(action!=='NEW'&&action!=='UPDATE')throw Error(`Row ${r}: choose NEW or UPDATE`)
+  if(action==='NEW'&&employeeNo)throw Error(`Row ${r}: leave Employee ID blank for NEW`)
+  if(action==='UPDATE'&&!employeeNo)throw Error(`Row ${r}: Employee ID is required`)
+  if(action==='UPDATE'&&!/^\d{6}$/.test(employeeNo))throw Error(`Row ${r}: Employee ID must be six digits`)
+  if(employeeNo&&seen.has(employeeNo))throw Error(`Employee ID ${employeeNo} appears more than once`);if(employeeNo)seen.add(employeeNo)
+  const providedRef=headers.has(REF_HEADER)?inputText(row.getCell(headers.get(REF_HEADER)!)).toUpperCase():''
+  const reference=action==='NEW'?(providedRef||`NEW-ROW-${r}`):employeeNo
+  if(action==='NEW'&&!/^NEW[-_][A-Z0-9_-]{1,60}$/.test(reference))throw Error(`Row ${r}: Upload reference must start NEW- and be unique`)
+  if(references.has(reference))throw Error(`Upload reference ${reference} appears more than once`);references.add(reference)
   const name=inputText(row.getCell(headers.get('Employee Name')!));if(!name)throw Error(`Row ${r}: Employee Name is required`)
-  const mode=inputText(row.getCell(headers.get(MODE_HEADER)!)).toUpperCase();if(mode!=='YES'&&mode!=='NO')throw Error(`Row ${r}: choose YES or NO for replacement`)
-  const item:UploadRow={employeeNo,name,replace:mode==='YES',core:{},profile:{},payroll:{},family:[]}
+  const mode=inputText(row.getCell(headers.get(MODE_HEADER)!)).toUpperCase();if(action==='UPDATE'&&mode!=='YES'&&mode!=='NO')throw Error(`Row ${r}: choose YES or NO for replacement`)
+  if(action==='NEW'&&mode&&!['YES','NO'].includes(mode))throw Error(`Row ${r}: NEW replacement choice must be blank, YES or NO`)
+  const item:UploadRow={action,reference,employeeNo,name,replace:action==='NEW'||mode==='YES',core:{},profile:{},payroll:{},family:[]}
   for(const [header,col]of headers){const field=known.get(header);if(!field)continue;const value=inputText(row.getCell(col));if(value){if(value.length>5000)throw Error(`Row ${r}: ${header} is too long`);item[field.bucket][field.key]=value}}
   result.push(item)
  }
@@ -111,26 +131,41 @@ export async function parseWorkbook(bytes:Buffer,fields:Field[]):Promise<UploadR
  const familySheet=book.getWorksheet('Family')
  if(familySheet){if(familySheet.rowCount>1002)throw Error('Maximum 1,000 family rows per upload')
   const familyColumns=new Map<string,number>();familySheet.getRow(2).eachCell({includeEmpty:false},(cell,col)=>{const header=inputText(cell);if(familyColumns.has(header))throw Error(`Duplicate family column: ${header}`);if(!familyHeaders.includes(header))throw Error(`Unknown family column: ${header}`);familyColumns.set(header,col)})
-  if(familyHeaders.some(h=>!familyColumns.has(h)))throw Error('Family sheet columns are incomplete')
-  const byId=new Map(result.map(r=>[r.employeeNo,r])),seenFamily=new Set<string>()
-  for(let r=3;r<=familySheet.rowCount;r++){const line=familySheet.getRow(r),get=(h:string)=>inputText(line.getCell(familyColumns.get(h)!)),id=get(ID_HEADER);if(!id){if(hasData(line))throw Error(`Family row ${r}: Employee ID is required`);continue}
-   const owner=byId.get(id);if(!owner)throw Error(`Family row ${r}: Employee ID must also appear on Employees sheet`)
+  if(familyHeaders.filter(h=>h!==REF_HEADER).some(h=>!familyColumns.has(h)))throw Error('Family sheet columns are incomplete')
+  const byId=new Map(result.filter(r=>r.employeeNo).map(r=>[r.employeeNo,r])),byRef=new Map(result.filter(r=>r.action==='NEW').map(r=>[r.reference!,r])),seenFamily=new Set<string>()
+  for(let r=3;r<=familySheet.rowCount;r++){const line=familySheet.getRow(r),get=(h:string)=>inputText(line.getCell(familyColumns.get(h)!)),id=get(ID_HEADER),ref=familyColumns.has(REF_HEADER)?get(REF_HEADER).toUpperCase():'';if(!hasData(line))continue
+   if(id&&ref)throw Error(`Family row ${r}: use Employee ID or NEW Upload reference, not both`)
+   if(!id&&!ref)throw Error(`Family row ${r}: Employee ID or NEW Upload reference is required`)
+   const owner=id?byId.get(id):byRef.get(ref);if(!owner)throw Error(`Family row ${r}: Employee ID must also appear on Employees sheet`)
    if(get('Employee Name')!==owner.name)throw Error(`Family row ${r}: Employee Name does not match Employees sheet`)
    const type=get('Member Type (Spouse/Child)');if(type!=='Spouse'&&type!=='Child')throw Error(`Family row ${r}: choose Spouse or Child`)
    const number=type==='Spouse'?0:Number(get('Child Number'));if(type==='Child'&&(!Number.isInteger(number)||number<1||number>20))throw Error(`Family row ${r}: Child Number must be 1 to 20`)
-   const identifier=`${id}:${type}:${number}`;if(seenFamily.has(identifier))throw Error(`Family member ${identifier} appears more than once`);seenFamily.add(identifier)
-   const mode=get(MODE_HEADER).toUpperCase();if(mode!=='YES'&&mode!=='NO')throw Error(`Family row ${r}: choose YES or NO`)
+   const identifier=`${id||ref}:${type}:${number}`;if(seenFamily.has(identifier))throw Error(`Family member ${identifier} appears more than once`);seenFamily.add(identifier)
+   const mode=get(MODE_HEADER).toUpperCase();if(owner.action!=='NEW'&&mode!=='YES'&&mode!=='NO')throw Error(`Family row ${r}: choose YES or NO`)
    const values:Record<string,string>={};for(const [header,key]of [['Member Full Name','full_name'],['Age','age'],['Pre-existing Conditions','pre_existing_conditions'],['CNIC','cnic']]){const value=get(header);if(value)values[key]=value}
-   owner.family.push({type,childNumber:number,replace:mode==='YES',values})
+   owner.family.push({type,childNumber:number,replace:owner.action==='NEW'||mode==='YES',values})
   }
  }
  return result
 }
 export function planUpload(rows:UploadRow[],snapshot:Snapshot,fields:Field[]):PlannedRow[]{
  const employees=new Map(snapshot.employees.map(e=>[e.employee_no,e])),details=new Map(snapshot.details.map(d=>[d.employee_id,d])),families=new Map((snapshot.families??[]).map(f=>[f.employee_id,f])),labels=new Map(fields.map(f=>[`${f.bucket}.${f.key}`,f.header]))
- return rows.map(row=>{const employee=employees.get(row.employeeNo);if(!employee)throw Error(`Employee ID ${row.employeeNo} does not exist`)
-  const detail=details.get(employee.id);if(!detail)throw Error(`Employee details missing for ${row.employeeNo}`)
-  const family=families.get(employee.id),children=[...(family?.children??[])],planned:PlannedRow={employeeNo:row.employeeNo,name:row.name,replace:row.replace,expectedCoreUpdatedAt:employee.updated_at,expectedDetailsUpdatedAt:detail.updated_at,expectedFamilyUpdatedAt:family?.updated_at??null,core:{},profile:{},payroll:{},family:[],fill:0,overwrite:0,skipped:0,unchanged:0,changes:[]}
+ const normalize=(value:unknown)=>cellText(value).toLowerCase().replace(/[^a-z0-9]/g,'')
+ const claimed:UploadRow[]=[]
+ for(const row of rows.filter(r=>r.action==='NEW')){
+  if(!row.core.full_name?.trim()||!row.core.department?.trim()||!row.core.designation?.trim())throw Error(`NEW ${row.name}: name, department and designation are required`)
+  const cnic=normalize(row.profile.cnic_passport),emails=[row.profile.email,row.profile.personal_email].map(normalize).filter(Boolean)
+  const duplicate=(name:string,p:Record<string,unknown>)=>normalize(name)===normalize(row.name)||(!!cnic&&normalize(p.cnic_passport)===cnic)||emails.some(x=>[p.email,p.personal_email].map(normalize).includes(x))
+  if(snapshot.employees.some(e=>duplicate(e.full_name,snapshot.details.find(d=>d.employee_id===e.id)?.profile??{}))||claimed.some(r=>duplicate(r.name,r.profile)))throw Error(`Possible duplicate for NEW ${row.name}: matching name, CNIC or email. Review before adding.`)
+  claimed.push(row)
+ }
+ return rows.map(row=>{
+  const isNew=row.action==='NEW',reference=row.reference||row.employeeNo
+  const employee=isNew?{id:reference,employee_no:'',full_name:'',designation:null,department:null,reports_to_text:null,location:null,record_status:null,source_note:null,updated_at:''}:employees.get(row.employeeNo)
+  if(!employee)throw Error(`Employee ID ${row.employeeNo} does not exist`)
+  const detail=isNew?{employee_id:reference,profile:{},payroll_aug_2026:{},updated_at:''}:details.get(employee.id)
+  if(!detail)throw Error(`Employee details missing for ${row.employeeNo}`)
+  const family=families.get(employee.id),children=[...(family?.children??[])],planned:PlannedRow={action:isNew?'NEW':'UPDATE',reference,employeeNo:row.employeeNo,name:row.name,replace:row.replace,expectedCoreUpdatedAt:employee.updated_at,expectedDetailsUpdatedAt:detail.updated_at,expectedFamilyUpdatedAt:family?.updated_at??null,core:{},profile:{},payroll:{},family:[],fill:0,overwrite:0,skipped:0,unchanged:0,changes:[]}
   for(const bucket of ['core','profile','payroll'] as const)for(const [key,after]of Object.entries(row[bucket])){const before=cellText(bucket==='core'?employee[key as keyof EmployeeRow]:bucket==='profile'?(detail.profile??{})[key]:(detail.payroll_aug_2026??{})[key]);if(before===after){planned.unchanged++;continue}
    const action: 'fill'|'replace'|'skip'=before?'replace':'fill';const allowed=action==='fill'||row.replace
    if(allowed){planned[bucket][key]=after;if(action==='fill')planned.fill++;else planned.overwrite++}else planned.skipped++
