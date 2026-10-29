@@ -84,7 +84,7 @@ test('NEW duplicate name, CNIC and email are held, including duplicates within t
 test('NEW rows reject supplied IDs and UPDATE keeps mandatory YES/NO',async()=>{
  const ExcelJS=nodeRequire('exceljs'),book=new ExcelJS.Workbook();await book.xlsx.load(await bulk.template(snapshot))
  const sheet=book.getWorksheet('Employees');sheet.getCell('C3').value='NEW'
- await assert.rejects(()=>bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot)),/leave Employee ID blank/)
+ await assert.rejects(async()=>bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot)),/leave Employee ID blank/)
  sheet.getCell('C3').value='UPDATE';sheet.getCell('B3').value=''
- await assert.rejects(()=>bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot)),/choose YES or NO/)
+ await assert.rejects(async()=>bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot)),/choose YES or NO/)
 })
