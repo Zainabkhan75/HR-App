@@ -10,7 +10,7 @@ const config=load('../app/employees/field-config.ts')
 const bulk=load('../lib/bulk-upload.ts',{'../app/employees/field-config':config})
 const snapshot={employees:[{id:'e1',employee_no:'100001',full_name:'Existing Person',designation:'Advisor',department:null,reports_to_text:null,location:null,record_status:null,source_note:null,updated_at:'2026-10-28T10:00:00Z'}],details:[{employee_id:'e1',profile:{mobile:'03000000000',bank_account_number:'000123'},payroll_aug_2026:{payroll_fixed_salary_aug_2026_pkr:'80000'},updated_at:'2026-10-28T10:00:00Z'}]}
 
-test('composite template has separate blank upload and current-data reference sheets',async()=>{
+test('composite template prefills latest values and keeps current-data reference sheets',async()=>{
  const bytes=await bulk.template(snapshot),ExcelJS=nodeRequire('exceljs'),book=new ExcelJS.Workbook();await book.xlsx.load(bytes)
  const upload=book.getWorksheet('Employees'),current=book.getWorksheet('Current data')
  assert.equal(upload.getCell('A3').value,'100001')
@@ -18,8 +18,11 @@ test('composite template has separate blank upload and current-data reference sh
  const headers=upload.getRow(2).values
  const bankColumn=headers.indexOf('Profile | Bank Account Number')
  assert.ok(bankColumn>0)
- assert.equal(upload.getRow(3).getCell(bankColumn).value,'')
+ assert.equal(upload.getRow(3).getCell(bankColumn).value,'000123')
  assert.equal(current.getRow(3).getCell(bankColumn).value,'000123')
+ const parsed=await bulk.parseWorkbook(Buffer.from(bytes),bulk.fieldsFor(snapshot))
+ const planned=bulk.planUpload(parsed,snapshot,bulk.fieldsFor(snapshot))[0]
+ assert.equal(planned.fill+planned.overwrite+planned.skipped,0)
 })
 test('NO fills blanks and skips existing values; YES replaces only entered fields',()=>{
  const fields=bulk.fieldsFor(snapshot)

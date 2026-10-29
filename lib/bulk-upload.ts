@@ -54,7 +54,8 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  guide.addRow(['Bandana employee bulk upload'])
  for(const line of [
   'Match rows by the six-digit Employee ID. Employee Name is included for review and may be corrected.',
-  'Put new values in the relevant columns. Blank upload cells do not erase stored values.',
+  'The Employees and Family sheets contain the latest saved values at download time. Edit only the values you want to change.',
+  'Blank upload cells do not erase stored values. The Current data and Current family sheets preserve a download-time reference.',
   'Set Replace existing values? to YES for an employee only when differing populated values should be overwritten. NO fills empty fields only.',
   'Upload the file in Employee Directory > Bulk upload. Review every proposed change before applying.',
   'For spouse and children, use the Family sheet. Identify children by Child Number; blanks do not erase existing values.',
@@ -63,11 +64,11 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  ])guide.addRow([line])
  guide.getColumn(1).width=115;guide.getRow(1).font={bold:true,size:16,color:{argb:'FF15568E'}}
  const fields=fieldsFor(snapshot),headers=[ID_HEADER,MODE_HEADER,...fields.map(f=>f.header)]
- sheet.addRow(['Edit this copy, then upload it. Row 2 contains column headings; data starts on row 3. Leave a cell blank to leave that field unchanged.'])
+ sheet.addRow(['Latest saved values are prefilled. Edit this copy, then upload it. Row 2 contains column headings; data starts on row 3.'])
  sheet.addRow(headers);reference.addRow(['Reference only. Current values at download time; edits on this sheet are not uploaded.']);reference.addRow(headers)
  const details=new Map(snapshot.details.map(d=>[d.employee_id,d]))
  for(const employee of snapshot.employees){const detail=details.get(employee.id),profile=detail?.profile??{},payroll=detail?.payroll_aug_2026??{}
-  const row=sheet.addRow([employee.employee_no,'NO',employee.full_name,...fields.slice(1).map(()=>'')])
+  const row=sheet.addRow([employee.employee_no,'NO',...fields.map(f=>cellText(f.bucket==='core'?employee[f.key as keyof EmployeeRow]:f.bucket==='profile'?profile[f.key]:payroll[f.key]))])
   row.getCell(1).numFmt='@';row.getCell(1).alignment={horizontal:'left'}
   reference.addRow([employee.employee_no,'',...fields.map(f=>cellText(f.bucket==='core'?employee[f.key as keyof EmployeeRow]:f.bucket==='profile'?profile[f.key]:payroll[f.key]))])
  }
@@ -80,12 +81,12 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  for(let r=3;r<=Math.max(1000,sheet.rowCount);r++)sheet.getCell(r,2).dataValidation={type:'list',allowBlank:false,formulae:['"NO,YES"'],showErrorMessage:true,error:'Choose NO or YES'}
  sheet.autoFilter={from:{row:2,column:1},to:{row:sheet.rowCount,column:headers.length}}
  reference.views=[{state:'frozen',xSplit:2,ySplit:2}];reference.getRow(2).font={bold:true,color:{argb:'FFFFFFFF'}};reference.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF607488'}};cell.alignment={wrapText:true}});reference.getColumn(1).width=17;reference.getColumn(2).width=15;for(let c=3;c<=headers.length;c++)reference.getColumn(c).width=c===3?28:25
- familySheet.addRow(['Add a spouse or child on a new row. Use Child Number 1, 2, 3... in order. Existing members appear below with data cells blank.']);familySheet.addRow(familyHeaders)
+ familySheet.addRow(['Existing family values are prefilled. Add a spouse or child on a new row. Use Child Number 1, 2, 3... in order.']);familySheet.addRow(familyHeaders)
  familyReference.addRow(['Reference only. Current family values at download time; edits here are not uploaded.']);familyReference.addRow(familyHeaders)
  const employeesById=new Map(snapshot.employees.map(e=>[e.id,e]))
  for(const family of snapshot.families??[]){const employee=employeesById.get(family.employee_id);if(!employee)continue
   const members=[...(family.spouse?[{type:'Spouse',number:0,member:family.spouse}]:[]),...(family.children??[]).map((member,index)=>({type:'Child',number:index+1,member}))]
-  for(const {type,number,member} of members){familySheet.addRow([employee.employee_no,employee.full_name,type,number||'', 'NO','','','','']);familyReference.addRow([employee.employee_no,employee.full_name,type,number||'','',member.full_name,member.age,member.pre_existing_conditions,member.cnic])}
+  for(const {type,number,member} of members){familySheet.addRow([employee.employee_no,employee.full_name,type,number||'', 'NO',member.full_name,member.age,member.pre_existing_conditions,member.cnic]);familyReference.addRow([employee.employee_no,employee.full_name,type,number||'','',member.full_name,member.age,member.pre_existing_conditions,member.cnic])}
  }
  for(const tab of [familySheet,familyReference]){tab.views=[{state:'frozen',xSplit:2,ySplit:2}];tab.getRow(2).font={bold:true,color:{argb:'FFFFFFFF'}};tab.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:tab===familySheet?'FF15568E':'FF607488'}};cell.alignment={wrapText:true}});for(let c=1;c<=familyHeaders.length;c++)tab.getColumn(c).width=c===2||c===6?30:22}
  for(let r=3;r<=Math.max(300,familySheet.rowCount);r++)familySheet.getCell(r,5).dataValidation={type:'list',allowBlank:false,formulae:['"NO,YES"']}
