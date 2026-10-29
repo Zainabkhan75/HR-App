@@ -19,8 +19,6 @@ const coreFields:Field[]=[
  {header:'Department',bucket:'core',key:'department'},
  {header:'Reports To',bucket:'core',key:'reports_to_text'},
  {header:'Location',bucket:'core',key:'location'},
- {header:'Record Status',bucket:'core',key:'record_status'},
- {header:'Source / Verification Note',bucket:'core',key:'source_note'},
 ]
 export const ID_HEADER='Employee ID'
 export const MODE_HEADER='Replace existing values? (YES/NO)'
