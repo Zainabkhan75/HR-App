@@ -57,7 +57,34 @@ test('family worksheet rows match employee ID and parse into the same upload',as
 })
 test('data without an employee ID is rejected instead of silently skipped',async()=>{
  const ExcelJS=nodeRequire('exceljs'),book=new ExcelJS.Workbook();await book.xlsx.load(await bulk.template(snapshot))
- book.getWorksheet('Employees').addRow(['','NO','New Person'])
+ const sheet=book.getWorksheet('Employees'),row=sheet.addRow([]);row.getCell(2).value='NO';row.getCell(3).value='UPDATE';row.getCell(5).value='New Person'
  const bytes=Buffer.from(await book.xlsx.writeBuffer())
  await assert.rejects(()=>bulk.parseWorkbook(bytes,bulk.fieldsFor(snapshot)),/Employee ID is required/)
+})
+
+test('NEW rows keep ID blank, link family by reference and ignore replacement flag',async()=>{
+ const ExcelJS=nodeRequire('exceljs'),book=new ExcelJS.Workbook();await book.xlsx.load(await bulk.template(snapshot))
+ const sheet=book.getWorksheet('Employees'),headers=sheet.getRow(2).values,row=sheet.addRow([])
+ const put=(name,value)=>{row.getCell(headers.indexOf(name)).value=value}
+ put('Employee ID','');put('Action (NEW/UPDATE)','NEW');put('Upload reference','NEW-01')
+ put('Employee Name','Entirely New Person');put('Designation','Sales Executive');put('Department','Retail Ops')
+ book.getWorksheet('Family').addRow(['','Entirely New Person','Child',1,'','Child',5,'','','NEW-01'])
+ const parsed=await bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot))
+ const added=parsed.find(r=>r.action==='NEW');assert.equal(added.reference,'NEW-01');assert.equal(added.employeeNo,'');assert.equal(added.family.length,1)
+ const planned=bulk.planUpload(parsed,snapshot,bulk.fieldsFor(snapshot));assert.equal(planned.at(-1).action,'NEW');assert.ok(planned.at(-1).fill>=3)
+})
+test('NEW duplicate name, CNIC and email are held, including duplicates within the upload',()=>{
+ const fields=bulk.fieldsFor(snapshot),fresh={action:'NEW',reference:'NEW-01',employeeNo:'',name:'New Person',replace:true,core:{full_name:'New Person',designation:'Advisor',department:'Retail'},profile:{},payroll:{},family:[]}
+ assert.throws(()=>bulk.planUpload([{...fresh,name:'Existing Person',core:{...fresh.core,full_name:'Existing Person'}}],snapshot,fields),/Possible duplicate/)
+ const identity={...snapshot,details:[{...snapshot.details[0],profile:{email:'staff@example.com',cnic_passport:'1234567890123'}}]}
+ for(const profile of [{personal_email:'staff@example.com'},{cnic_passport:'12345-6789012-3'}])assert.throws(()=>bulk.planUpload([{...fresh,profile}],identity,fields),/Possible duplicate/)
+ assert.throws(()=>bulk.planUpload([fresh,{...fresh,reference:'NEW-02'}],snapshot,fields),/Possible duplicate/)
+ assert.throws(()=>bulk.planUpload([{...fresh,core:{full_name:'New Person'}}],snapshot,fields),/required/)
+})
+test('NEW rows reject supplied IDs and UPDATE keeps mandatory YES/NO',async()=>{
+ const ExcelJS=nodeRequire('exceljs'),book=new ExcelJS.Workbook();await book.xlsx.load(await bulk.template(snapshot))
+ const sheet=book.getWorksheet('Employees');sheet.getCell('C3').value='NEW'
+ await assert.rejects(()=>bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot)),/leave Employee ID blank/)
+ sheet.getCell('C3').value='UPDATE';sheet.getCell('B3').value=''
+ await assert.rejects(()=>bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot)),/choose YES or NO/)
 })
