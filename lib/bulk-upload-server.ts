@@ -11,7 +11,7 @@ export async function uploadContext(){
  return{status:200 as const,db,user}
 }
 export async function readSnapshot(db:Awaited<ReturnType<typeof serverSupabase>>):Promise<Snapshot>{
- const [employees,details,families]=await Promise.all([db.from('employees').select('id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,updated_at').order('employee_no').limit(2000),db.from('employee_details').select('employee_id,profile,payroll_aug_2026,updated_at').limit(2000),db.from('employee_family_details').select('employee_id,spouse,children,updated_at').limit(2000)])
+ const [employees,details,families]=await Promise.all([db.from('employees').select('id,employee_no,full_name,designation,department,reports_to_text,location,updated_at').order('employee_no').limit(2000),db.from('employee_details').select('employee_id,profile,payroll_aug_2026,updated_at').limit(2000),db.from('employee_family_details').select('employee_id,spouse,children,updated_at').limit(2000)])
  if(employees.error||details.error||families.error||!employees.data||!details.data||!families.data)throw Error('Employee data unavailable')
  return{employees:employees.data as Snapshot['employees'],details:details.data as Snapshot['details'],families:families.data as Snapshot['families']}
 }
