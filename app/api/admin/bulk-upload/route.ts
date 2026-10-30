@@ -1,9 +1,11 @@
+import {provisionEmployeeLogin} from '../../../../lib/employee-login-server'
 import {NextResponse} from 'next/server'
 import {sameOriginRequest} from '../../../../lib/signin-server'
 import {fieldsFor,fileHash,parseWorkbook,planUpload} from '../../../../lib/bulk-upload'
 import {readSnapshot,serviceDb,signPreview,uploadContext,verifyPreview} from '../../../../lib/bulk-upload-server'
 
 export const dynamic='force-dynamic'
+export const maxDuration=300
 const headers={'Cache-Control':'private, no-store','Vary':'Cookie'}
 const json=(body:object,status=200)=>NextResponse.json(body,{status,headers})
 export async function POST(request:Request){
@@ -26,8 +28,19 @@ export async function POST(request:Request){
   const changes=planned.filter(r=>r.action==='NEW'||r.fill+r.overwrite>0)
   if(!changes.length)return json({applied:0,fields:0})
   const payload=changes.map(r=>({action:r.action,reference:r.reference,employee_no:r.employeeNo,expected_core_updated_at:r.expectedCoreUpdatedAt,expected_details_updated_at:r.expectedDetailsUpdatedAt,expected_family_updated_at:r.expectedFamilyUpdatedAt,replace:r.replace,core:r.core,profile:r.profile,payroll:r.payroll,family:r.family}))
-  const {data,error}=await serviceDb().rpc('apply_employee_bulk_upload_v2',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
+  const admin=serviceDb()
+  const {data,error}=await admin.rpc('apply_employee_bulk_upload_v2',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
   if(error) return json({error:'Upload was not applied. Employee data may have changed; preview again.',detail:error.message},409)
-  return json({applied:changes.length,fields:data?.fields??changes.reduce((n,r)=>n+r.fill+r.overwrite,0),created:data?.created??[],newEmployees:data?.created?.length??0})
+  const logins:Record<string,unknown>[]=[]
+  const added=data?.created??[]
+  for(let start=0;start<added.length;start+=5){await Promise.all(added.slice(start,start+5).map(async(created:{employee_no:string;name:string})=>{
+   try{
+    const {data:employee,error:lookup}=await admin.from('employees').select('id').eq('employee_no',created.employee_no).single()
+    if(lookup||!employee)throw Error('Employee saved; could not retrieve login details')
+    const login=await provisionEmployeeLogin(admin,employee.id,ctx.user.id)
+    logins.push({...login,status:'created'})
+   }catch(e){logins.push({employee_no:created.employee_no,full_name:created.name,status:'pending',reason:e instanceof Error?e.message:'Login creation pending'})}
+  }));}
+  return json({applied:changes.length,fields:data?.fields??changes.reduce((n,r)=>n+r.fill+r.overwrite,0),created:data?.created??[],newEmployees:data?.created?.length??0,logins})
  }catch(error){return json({error:error instanceof Error?error.message:'Upload failed'},400)}
 }
