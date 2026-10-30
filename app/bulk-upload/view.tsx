@@ -4,7 +4,9 @@ import {useState} from 'react'
 type Change={field:string;before:string;after:string;action:'fill'|'replace'|'skip'}
 type PreviewRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string;name:string;replace:boolean;fill:number;overwrite:number;skipped:number;unchanged:number;changes:Change[]}
 type Preview={rows:PreviewRow[];token:string;totals:{employees:number;fill:number;replace:number;skipped:number}}
+type LoginResult={employee_no:string;full_name:string;username?:string;initial_password?:string;status:string;reason?:string}
 export default function BulkUpload(){
+ const [logins,setLogins]=useState<LoginResult[]>([])
  const [file,setFile]=useState<File|null>(null),[preview,setPreview]=useState<Preview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[showAll,setShowAll]=useState(false)
  async function download(){setBusy(true);setError('');try{const response=await fetch('/api/admin/bulk-upload/template',{cache:'no-store'});if(!response.ok)throw Error('Could not download template');const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download='Bandana_Employee_Bulk_Upload_Template.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){setError(e instanceof Error?e.message:'Download failed')}finally{setBusy(false)}}
  async function send(action:'preview'|'apply'){
@@ -14,7 +16,7 @@ export default function BulkUpload(){
    const response=await fetch('/api/admin/bulk-upload',{method:'POST',body:form,cache:'no-store'}),result=await response.json()
    if(!response.ok)throw Error(result.error??'Upload failed')
    if(action==='preview'){setPreview(result as Preview);setNotice('Preview ready. Review the changes below before applying.')}
-   else{setNotice(`Applied ${result.fields} field changes across ${result.applied} employees.${result.created?.length?' New IDs: '+result.created.map((r:{name:string;employee_no:string})=>r.name+' ('+r.employee_no+')').join('; '):''}`);setPreview(null);setFile(null);const input=document.getElementById('bulk-upload-file') as HTMLInputElement|null;if(input)input.value=''}
+   else{setLogins(result.logins??[]);setNotice(`Applied ${result.fields} field changes across ${result.applied} employees.${result.created?.length?' New IDs: '+result.created.map((r:{name:string;employee_no:string})=>r.name+' ('+r.employee_no+')').join('; '):''}`);setPreview(null);setFile(null);const input=document.getElementById('bulk-upload-file') as HTMLInputElement|null;if(input)input.value=''}
   }catch(e){setError(e instanceof Error?e.message:'Upload failed');if(action==='apply')setPreview(null)}finally{setBusy(false)}
  }
  const shown=preview?.rows.filter(r=>showAll||r.fill+r.overwrite+r.skipped>0)??[]
@@ -28,5 +30,6 @@ export default function BulkUpload(){
  <div className="tablewrap"><table><thead><tr><th>Emp ID</th><th>Name</th><th>Replace?</th><th>Changes</th></tr></thead><tbody>{shown.map(row=><tr key={row.reference}><td>{row.action==='NEW'?'NEW · '+row.reference:row.employeeNo}</td><td>{row.name}</td><td>{row.action==='NEW'?'New record':row.replace?'YES':'NO'}</td><td>{row.changes.length?row.changes.map((change,i)=><div key={i} className="bulk-change"><strong>{change.field}</strong> · {change.action==='fill'?'Fill empty':change.action==='replace'?'Replace':'Skipped'}<br/><span className="muted">{change.before||'(empty)'} → {change.after}</span></div>):<span className="muted">No changes</span>}</td></tr>)}</tbody></table></div>
  <p className="muted">This preview expires after 30 minutes. If anyone edits a matching employee before you apply it, upload the file again for a fresh preview.</p><button disabled={busy||preview.totals.fill+preview.totals.replace===0} onClick={()=>void send('apply')}>{busy?'Applying…':`Apply ${preview.totals.fill+preview.totals.replace} changes`}</button>
  </section>}
+ {logins.length>0&&<section className="panel"><h2>New employee logins</h2><p>Created logins require a password change at first login. No emails have been sent. Copy the initial credentials before leaving this page.</p><div className="tablewrap"><table><thead><tr><th>Employee ID</th><th>Name</th><th>Username</th><th>Initial password</th><th>Status / reason</th></tr></thead><tbody>{logins.map(r=><tr key={r.employee_no}><td>{r.employee_no}</td><td>{r.full_name}</td><td>{r.username??'—'}</td><td>{r.initial_password??'—'}</td><td>{r.status==='created'?'Login created':r.reason}</td></tr>)}</tbody></table></div><button className="secondary" onClick={()=>setLogins([])}>Clear credentials from this screen</button></section>}
  </main>
 }
