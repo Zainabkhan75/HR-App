@@ -1,0 +1,4 @@
+create or replace function public.leave_action(p_action text,p_payload jsonb) returns jsonb language plpgsql security invoker set search_path='' as $f$
+begin if not public.is_hr_admin() then raise exception 'Leave and Inbox are coming in Phase 2' using errcode='42501';end if;return hrms_private.leave_action(p_action,p_payload);end $f$;
+create or replace function public.leave_workspace(p_year integer) returns jsonb language plpgsql stable security invoker set search_path='' as $f$
+begin if not public.is_hr_admin() then raise exception 'Leave and Inbox are coming in Phase 2' using errcode='42501';end if;return hrms_private.leave_workspace(p_year);end $f$;
