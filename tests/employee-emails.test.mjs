@@ -24,7 +24,7 @@ test('message validation rejects header injection and unknown placeholders',()=>
 })
 const campaign={id:'campaign-1',subject:'Welcome',body:'Hi {{name}}, ID {{employee_id}}. {{login_url}}',reply_to:'hr@example.com',recipients:[{id:'1',employee_no:'200001',name:'Test $&',email:'one@example.com'},{id:'2',employee_no:'200002',name:'Two',email:'two@example.com'}]}
 test('payload sends individually and preserves personalized names literally',()=>{
- const p=emailPayload(campaign);assert.deepEqual(p.map(x=>x.to),[['one@example.com'],['two@example.com']]);assert.match(p[0].text,/Test \$&/);assert.equal(p[0].from,'Bandana HR <bandanahr@seidohr.com>');assert.equal(p[0].reply_to,'hr@example.com')
+ const p=emailPayload(campaign);assert.deepEqual(p.map(x=>x.to),[['one@example.com'],['two@example.com']]);assert.match(p[0].text,/Test \$&/);assert.equal(p[0].from,'Bandana HR <hr@bandana.seidohr.com>');assert.equal(p[0].reply_to,'hr@example.com')
 })
 test('retry uses same idempotency key and accepted is not delivered',async()=>{
  const keys=[];const mock=async(url,options)=>{keys.push(options.headers['Idempotency-Key']);assert.equal(url,'https://api.resend.com/emails/batch');return{ok:true,json:async()=>({data:[{id:'a'},{id:'b'}]})}}

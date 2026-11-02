@@ -1,4 +1,4 @@
-export const EMAIL_FROM='Bandana HR <bandanahr@seidohr.com>'
+export const EMAIL_FROM='Bandana HR <hr@bandana.seidohr.com>'
 export const LOGIN_URL='https://hr-app-five-psi.vercel.app/login'
 export type EmailEmployee={id:string;employee_no:string;full_name:string;department:string|null;employment_state:string}
 export type EmailDetail={employee_id:string;profile:Record<string,unknown>|null}
