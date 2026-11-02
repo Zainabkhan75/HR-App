@@ -1,4 +1,3 @@
-import {randomBytes} from 'node:crypto'
 import {NextResponse} from 'next/server'
 import {createClient} from '@supabase/supabase-js'
 import {serverSupabase} from '../../../../lib/server'
@@ -57,7 +56,7 @@ export async function POST(request:Request){
   const employee=employeeByNo.get(id)!,account=accountByEmployee.get(employee.id)!
   const {data:auth,error:authError}=await admin.auth.admin.getUserById(account.user_id)
   if(authError||!auth.user||auth.user.email?.toLowerCase()!==account.login_email.toLowerCase())return response({error:'Authentication identity mismatch. No further passwords were generated.',results},409)
-  const password=randomBytes(24).toString('base64url')
+  const password=employee.full_name.trim().split(/\s+/)[0]+employee.employee_no.slice(-5)
   const {error:flagError}=await admin.from('employee_accounts').update({must_change_password:true}).eq('employee_id',employee.id).eq('user_id',account.user_id).eq('is_active',true).select('employee_id').single()
   if(flagError)return response({error:'Could not require password change. No further passwords were generated.',results},503)
   const {error:passwordError}=await admin.auth.admin.updateUserById(account.user_id,{password})
