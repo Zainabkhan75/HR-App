@@ -18,12 +18,13 @@ Deno.serve(async(req:Request)=>{
    const {data:d,error:de}=await db.from('employee_details').select('profile').eq('employee_id',e.id).single();
    const cnic=String(d?.profile?.cnic_passport??'').replace(/[-\s]/g,'');
    const first=e.full_name.trim().split(/\s+/)[0],suffix=cnic.slice(-4);
-   if(de||!/^\d{13}$/.test(cnic)||!first||first.length+suffix.length<6)throw Error('Invalid password inputs');
+   if(de)throw Error('Employee details unavailable');
+   const password=/^\d{13}$/.test(cnic)&&first.length+4>=6?first+suffix:'Pakistan1234';
    const {data:auth,error:authError}=await db.auth.admin.getUserById(a.user_id);
    if(authError||!auth.user||auth.user.email?.toLowerCase()!==a.login_email.toLowerCase())throw Error('Identity mismatch');
    const {error:flag}=await db.from('employee_accounts').update({must_change_password:true}).eq('employee_id',e.id).eq('user_id',a.user_id).select('employee_id').single();if(flag)throw Error('Password change flag failed');
-   const {error:reset}=await db.auth.admin.updateUserById(a.user_id,{password:first+suffix});if(reset)throw Error('Password reset failed: '+reset.message);
-   const {error:audit}=await db.from('employee_action_audit').insert({employee_id:e.id,employee_no:e.employee_no,action:'admin_password_generated',actor_id:actor,reason:'User-approved reversion: first name plus last four CNIC digits',record_snapshot:{password_rule:'first_name_cnic_last4'}});
+   const {error:reset}=await db.auth.admin.updateUserById(a.user_id,{password});if(reset)throw Error('Password reset failed: '+reset.message);
+   const {error:audit}=await db.from('employee_action_audit').insert({employee_id:e.id,employee_no:e.employee_no,action:'admin_password_generated',actor_id:actor,reason:'User-approved reversion: first name plus last four CNIC digits',record_snapshot:{password_rule:'first_name_cnic_last4_with_fallback'}});
    results.push({employee_no:e.employee_no,status:'reset',audit_logged:!audit});
   }catch(e){results.push({employee_no:row.employee_no,status:'failed',reason:e instanceof Error?e.message:'Unknown error'})}
  }));

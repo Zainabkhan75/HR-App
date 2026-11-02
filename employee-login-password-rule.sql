@@ -8,3 +8,10 @@ s:=replace(s,$old$ first_name:=(regexp_split_to_array(btrim(e.full_name),'[[:spa
 s:=replace(s,'first_name||right(e.employee_no,5)','first_name||right(cnic,4)');
 if position('right(cnic,4)' in s)=0 or position('Add a valid 13-digit CNIC' in s)=0 then raise exception 'Original rule restoration incomplete';end if;execute s;end $rule$;
 notify pgrst,'reload schema';
+do $rule$ declare s text;begin
+s:=pg_get_functiondef('public.prepare_employee_login(uuid,uuid,text)'::regprocedure);
+s:=replace(s,$old$ if cnic !~ '^[0-9]{13}$' then raise exception 'Add a valid 13-digit CNIC before creating a login';end if;$old$,'');
+s:=replace(s,$old$ if length(first_name)+4<6 then raise exception 'First name is too short for the agreed password rule. HR decision required.';end if;$old$,'');
+s:=replace(s,'first_name||right(cnic,4)', $new$case when cnic ~ '^[0-9]{13}$' and length(first_name)+4>=6 then first_name||right(cnic,4) else 'Pakistan1234' end$new$);
+if position('Pakistan1234' in s)=0 then raise exception 'Fallback rule change incomplete';end if;execute s;end $rule$;
+notify pgrst,'reload schema';

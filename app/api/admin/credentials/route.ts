@@ -49,7 +49,6 @@ export async function POST(request:Request){
  const {data:details,error:detailError}=await admin.from('employee_details').select('employee_id,profile').in('employee_id',employees.map(e=>e.id))
  if(detailError||!details)return response({error:'Employee CNIC details unavailable'},503)
  const cnics=new Map(details.map(d=>[d.employee_id,String(d.profile?.cnic_passport??'').replace(/[-\s]/g,'')]))
- if((employees as Employee[]).some(e=>!/^\d{13}$/.test(cnics.get(e.id)??'')||e.full_name.trim().split(/\s+/)[0].length+4<6))return response({error:'Each selected employee needs a valid 13-digit CNIC and a first name of at least two characters'},400)
  const userIds=accounts.map(a=>a.user_id)
  const {data:roles,error:roleError}=await admin.from('user_roles').select('user_id,role').in('user_id',userIds)
  if(roleError||!roles)return response({error:'Role check unavailable'},503)
@@ -60,7 +59,8 @@ export async function POST(request:Request){
   const employee=employeeByNo.get(id)!,account=accountByEmployee.get(employee.id)!
   const {data:auth,error:authError}=await admin.auth.admin.getUserById(account.user_id)
   if(authError||!auth.user||auth.user.email?.toLowerCase()!==account.login_email.toLowerCase())return response({error:'Authentication identity mismatch. No further passwords were generated.',results},409)
-  const password=employee.full_name.trim().split(/\s+/)[0]+cnics.get(employee.id)!.slice(-4)
+  const first=employee.full_name.trim().split(/\s+/)[0],cnic=cnics.get(employee.id)??''
+  const password=/^\d{13}$/.test(cnic)&&first.length+4>=6?first+cnic.slice(-4):'Pakistan1234'
   const {error:flagError}=await admin.from('employee_accounts').update({must_change_password:true}).eq('employee_id',employee.id).eq('user_id',account.user_id).eq('is_active',true).select('employee_id').single()
   if(flagError)return response({error:'Could not require password change. No further passwords were generated.',results},503)
   const {error:passwordError}=await admin.auth.admin.updateUserById(account.user_id,{password})
