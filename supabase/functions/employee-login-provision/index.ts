@@ -15,10 +15,10 @@ const {data:d,error:de}=await db.from('employee_details').select('profile,update
 if(ee||de||!e||!d||e.updated_at!==row.expected_updated_at||d.updated_at!==row.expected_profile_updated_at)throw Error('Employee changed since review');
 const {data:links,error:le}=await db.from('employee_accounts').select('employee_id').eq('employee_id',row.employee_id);
 if(le||links?.length)throw Error('Account already linked or unreadable');
-const suffix=String(e.employee_no).slice(-5);
+const cnic=String(d.profile.cnic_passport??'').replace(/[-\s]/g,'');
 const first=String(e.full_name).trim().split(/\s+/)[0];
-if(!/^\d{6}$/.test(e.employee_no)||!first||first.length+5<6)throw Error('Invalid password inputs');
-const attrs={password:first+suffix,email_confirm:true,app_metadata:{employee_provision_job:input.job},user_metadata:{full_name:e.full_name}};
+if(!/^\d{13}$/.test(cnic)||!first||first.length+4<6)throw Error('Invalid password inputs');
+const attrs={password:first+cnic.slice(-4),email_confirm:true,app_metadata:{employee_provision_job:input.job},user_metadata:{full_name:e.full_name}};
 if(row.existing_user_id){
 const {data:existing,error:ue}=await db.auth.admin.getUserById(row.existing_user_id);
 const {data:roles,error:re}=await db.from('user_roles').select('role').eq('user_id',row.existing_user_id);
