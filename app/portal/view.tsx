@@ -4,11 +4,11 @@ import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import FamilyEditor from './family-editor'
 import ProfileEditor from './profile-editor'
-import {backgroundSections,contactFields,employmentFields,rewardFields,payrollFields,contactDraft,contactPatch} from '../../lib/ess-profile'
+import {backgroundSections,contactFields,employmentFields,rewardFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
-const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['background','Emergency & background'],['pay','Salary & benefits'],['payroll','Historical payroll']] as const
+const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['background','Emergency & background'],['pay','Salary & benefits']] as const
 type Tab=typeof tabs[number][0]
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
@@ -103,10 +103,6 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
    <FieldList fields={rewardFields} values={profile.rewards}/>
   </section>:null}
 
-  {tab==='payroll'?<section className="panel"><div className="ess-section-heading"><h2>August 2026 payroll</h2><span className="ess-readonly">Historical · View only</span></div>
-   <p>This is the imported August 2026 snapshot. It is not a current payslip or live payroll calculation.</p>
-   <FieldList fields={payrollFields} values={profile.payroll_aug_2026}/>
-  </section>:null}
 
   {isManager?<section className="panel"><h2>My team</h2>{teamUnavailable?<p role="alert">Your team could not be loaded. Please try again later.</p>:team.length===0?<p>No verified direct reports have been linked yet.</p>:<ul className="team-list">{team.map(member=><li key={member.employee_no}><strong>{member.full_name}</strong><span>{member.employee_no} · {display(member.designation)}</span></li>)}</ul>}</section>:null}
  </main>

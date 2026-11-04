@@ -29,7 +29,7 @@ export async function POST(request:Request){
   if(!changes.length)return json({applied:0,fields:0})
   const payload=changes.map(r=>({action:r.action,reference:r.reference,employee_no:r.employeeNo,expected_core_updated_at:r.expectedCoreUpdatedAt,expected_details_updated_at:r.expectedDetailsUpdatedAt,expected_family_updated_at:r.expectedFamilyUpdatedAt,replace:r.replace,core:r.core,profile:r.profile,payroll:r.payroll,family:r.family}))
   const admin=serviceDb()
-  const {data,error}=await admin.rpc('apply_employee_bulk_upload_v2',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
+  const {data,error}=await admin.rpc('apply_september_employee_bulk_upload_v2',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
   if(error) return json({error:'Upload was not applied. Employee data may have changed; preview again.',detail:error.message},409)
   const logins:Record<string,unknown>[]=[]
   const added=data?.created??[]

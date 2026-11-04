@@ -1,12 +1,12 @@
 import ExcelJS from 'exceljs'
 import {createHash} from 'node:crypto'
-import {fieldKey,sections,payrollKeys} from '../app/employees/field-config'
+import {fieldKey,sections,payrollFields,retiredSalaryKeys,payrollProfileFields} from '../app/employees/field-config'
 
 export type Bucket='core'|'profile'|'payroll'
 export type Field={header:string;bucket:Bucket;key:string}
 export type EmployeeRow={id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;updated_at:string}
-export type DetailRow={employee_id:string;profile:Record<string,unknown>|null;payroll_aug_2026:Record<string,unknown>|null;updated_at:string}
-export type FamilyMember={full_name:string;age:number;pre_existing_conditions:string;cnic:string}
+export type DetailRow={employee_id:string;profile:Record<string,unknown>|null;payroll_sep_2026:Record<string,unknown>|null;updated_at:string}
+export type FamilyMember={full_name:string;age:number;date_of_birth?:string;pre_existing_conditions:string;cnic:string}
 export type FamilyRecord={employee_id:string;spouse:FamilyMember|null;children:FamilyMember[]|null;updated_at:string}
 export type Snapshot={employees:EmployeeRow[];details:DetailRow[];families?:FamilyRecord[]}
 export type FamilyInput={type:'Spouse'|'Child';childNumber:number;replace:boolean;values:Record<string,string>}
@@ -24,13 +24,13 @@ export const ID_HEADER='Employee ID'
 export const MODE_HEADER='Replace existing values? (YES/NO)'
 export const ACTION_HEADER='Action (NEW/UPDATE)'
 export const REF_HEADER='Upload reference'
-const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC',REF_HEADER]
+const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC',REF_HEADER,'Date of Birth']
 const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER])
 export function fieldsFor(snapshot:Snapshot):Field[]{
- const profile=new Map<string,string>(),payroll=new Map<string,string>()
- for(const section of sections)for(const label of section.labels){const key=fieldKey(label);(payrollKeys.has(label)?payroll:profile).set(key,label)}
- for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!['reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key)&&!profile.has(key))profile.set(key,key.replaceAll('_',' '));for(const key of Object.keys(detail.payroll_aug_2026??{}))if(!payroll.has(key))payroll.set(key,key.replaceAll('_',' '))}
- return [...coreFields,...[...profile].map(([key,label])=>({header:`Profile | ${label}`,bucket:'profile' as const,key})),...[...payroll].map(([key,label])=>({header:`August 2026 Payroll | ${label}`,bucket:'payroll' as const,key}))]
+ const profile=new Map<string,string>()
+ for(const section of sections)if(section.key!=='current-payroll')for(const label of section.labels)profile.set(fieldKey(label),label)
+ for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!profile.has(key)&&!retiredSalaryKeys.has(key)&&!['reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key))profile.set(key,key.replaceAll('_',' '))}
+ return [...coreFields,...[...profile].map(([key,label])=>({header:`Profile | ${label}`,bucket:'profile' as const,key})),...payrollFields.map(label=>({header:`Employees Payroll Details | ${label}`,bucket:'payroll' as const,key:fieldKey(label)}))]
 }
 export function cellText(value:unknown):string{
  if(value==null)return''
@@ -57,7 +57,7 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
   'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name, department and designation. An Active employee ID is assigned only when you apply.',
   'Give each NEW row a unique Upload reference such as NEW-01 if adding family rows; repeat that reference on the Family sheet with Employee ID blank.',
   'Potential duplicates by name, CNIC or email must be resolved before applying. Login creation remains a separate step.',
-  'The Employees and Family sheets contain the latest saved values at download time. Edit only the values you want to change.',
+  'The Employees sheet starts with saved values. Family details are normally submitted by employees in the portal.',
   'Blank upload cells do not erase stored values. The Current data and Current family sheets preserve a download-time reference.',
   'Set Replace existing values? to YES for an employee only when differing populated values should be overwritten. NO fills empty fields only.',
   'Upload the file in Employee Directory > Bulk upload. Review every proposed change before applying.',
@@ -70,10 +70,19 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  sheet.addRow(['Latest saved values are prefilled. Edit this copy, then upload it. Row 2 contains column headings; data starts on row 3.'])
  sheet.addRow(headers);reference.addRow(['Reference only. Current values at download time; edits on this sheet are not uploaded.']);reference.addRow(headers)
  const details=new Map(snapshot.details.map(d=>[d.employee_id,d]))
- for(const employee of snapshot.employees){const detail=details.get(employee.id),profile=detail?.profile??{},payroll=detail?.payroll_aug_2026??{}
-  const row=sheet.addRow([employee.employee_no,'NO','UPDATE','',...fields.map(f=>cellText(f.bucket==='core'?employee[f.key as keyof EmployeeRow]:f.bucket==='profile'?profile[f.key]:payroll[f.key]))])
+ for(const employee of snapshot.employees){const detail=details.get(employee.id),profile=detail?.profile??{},payroll=detail?.payroll_sep_2026??{}
+    const values=fields.map(f=>{
+   if(f.bucket==='core')return cellText(employee[f.key as keyof EmployeeRow])
+   if(f.bucket==='profile')return f.key==='notes'?'':cellText(profile[f.key])
+   if(f.key==='employee_id')return employee.employee_no
+   if(f.key==='full_name')return employee.full_name
+   if(f.key==='designation')return cellText(employee.designation)
+   if(f.key==='date_of_joining')return cellText(profile.date_of_joining)
+   return cellText(payroll[f.key])
+  })
+  const row=sheet.addRow([employee.employee_no,'NO','UPDATE','',...values])
   row.getCell(1).numFmt='@';row.getCell(1).alignment={horizontal:'left'}
-  reference.addRow([employee.employee_no,'','UPDATE','',...fields.map(f=>cellText(f.bucket==='core'?employee[f.key as keyof EmployeeRow]:f.bucket==='profile'?profile[f.key]:payroll[f.key]))])
+  reference.addRow([employee.employee_no,'','UPDATE','',...values])
  }
  sheet.views=[{state:'frozen',xSplit:2,ySplit:2}]
  sheet.getRow(1).font={bold:true,color:{argb:'FF15568E'}};sheet.getRow(1).height=28
@@ -88,12 +97,12 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  }
  sheet.autoFilter={from:{row:2,column:1},to:{row:sheet.rowCount,column:headers.length}}
  reference.views=[{state:'frozen',xSplit:2,ySplit:2}];reference.getRow(2).font={bold:true,color:{argb:'FFFFFFFF'}};reference.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF607488'}};cell.alignment={wrapText:true}});reference.getColumn(1).width=17;reference.getColumn(2).width=15;for(let c=3;c<=headers.length;c++)reference.getColumn(c).width=c===3?28:25
- familySheet.addRow(['Existing family values are prefilled. Add a spouse or child on a new row. Use Child Number 1, 2, 3... in order.']);familySheet.addRow(familyHeaders)
+ familySheet.addRow(['Employees normally fill family details in the portal. If HR needs to add a record, use Child Number 1, 2, 3... in order.']);familySheet.addRow(familyHeaders)
  familyReference.addRow(['Reference only. Current family values at download time; edits here are not uploaded.']);familyReference.addRow(familyHeaders)
  const employeesById=new Map(snapshot.employees.map(e=>[e.id,e]))
  for(const family of snapshot.families??[]){const employee=employeesById.get(family.employee_id);if(!employee)continue
   const members=[...(family.spouse?[{type:'Spouse',number:0,member:family.spouse}]:[]),...(family.children??[]).map((member,index)=>({type:'Child',number:index+1,member}))]
-  for(const {type,number,member} of members){familySheet.addRow([employee.employee_no,employee.full_name,type,number||'', 'NO',member.full_name,member.age,member.pre_existing_conditions,member.cnic]);familyReference.addRow([employee.employee_no,employee.full_name,type,number||'','',member.full_name,member.age,member.pre_existing_conditions,member.cnic])}
+  for(const {type,number,member} of members){familyReference.addRow([employee.employee_no,employee.full_name,type,number||'','',member.full_name,member.age,member.pre_existing_conditions,member.cnic,'',member.date_of_birth])}
  }
  for(const tab of [familySheet,familyReference]){tab.views=[{state:'frozen',xSplit:2,ySplit:2}];tab.getRow(2).font={bold:true,color:{argb:'FFFFFFFF'}};tab.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:tab===familySheet?'FF15568E':'FF607488'}};cell.alignment={wrapText:true}});for(let c=1;c<=familyHeaders.length;c++)tab.getColumn(c).width=c===2||c===6?30:22}
  for(let r=3;r<=Math.max(300,familySheet.rowCount);r++)familySheet.getCell(r,5).dataValidation={type:'list',allowBlank:false,formulae:['"NO,YES"']}
@@ -124,16 +133,16 @@ export async function parseWorkbook(bytes:Buffer,fields:Field[]):Promise<UploadR
   const mode=inputText(row.getCell(headers.get(MODE_HEADER)!)).toUpperCase();if(action==='UPDATE'&&mode!=='YES'&&mode!=='NO')throw Error(`Row ${r}: choose YES or NO for replacement`)
   if(action==='NEW'&&mode&&!['YES','NO'].includes(mode))throw Error(`Row ${r}: NEW replacement choice must be blank, YES or NO`)
   const item:UploadRow={action,reference,employeeNo,name,replace:action==='NEW'||mode==='YES',core:{},profile:{},payroll:{},family:[]}
-  for(const [header,col]of headers){const field=known.get(header);if(!field)continue;const value=inputText(row.getCell(col));if(value){if(value.length>5000)throw Error(`Row ${r}: ${header} is too long`);item[field.bucket][field.key]=value}}
+  for(const [header,col]of headers){const field=known.get(header);if(!field)continue;if(field.bucket==='payroll'&&[...payrollProfileFields].some(label=>field.key===fieldKey(label)))continue;const value=inputText(row.getCell(col));if(value){if(value.length>5000)throw Error(`Row ${r}: ${header} is too long`);item[field.bucket][field.key]=value}}
   result.push(item)
  }
  if(!result.length)throw Error('No employee rows found')
  const familySheet=book.getWorksheet('Family')
  if(familySheet){if(familySheet.rowCount>1002)throw Error('Maximum 1,000 family rows per upload')
   const familyColumns=new Map<string,number>();familySheet.getRow(2).eachCell({includeEmpty:false},(cell,col)=>{const header=inputText(cell);if(familyColumns.has(header))throw Error(`Duplicate family column: ${header}`);if(!familyHeaders.includes(header))throw Error(`Unknown family column: ${header}`);familyColumns.set(header,col)})
-  if(familyHeaders.filter(h=>h!==REF_HEADER).some(h=>!familyColumns.has(h)))throw Error('Family sheet columns are incomplete')
+  if(familyHeaders.filter(h=>h!==REF_HEADER&&h!=='Date of Birth').some(h=>!familyColumns.has(h)))throw Error('Family sheet columns are incomplete')
   const byId=new Map(result.filter(r=>r.employeeNo).map(r=>[r.employeeNo,r])),byRef=new Map(result.filter(r=>r.action==='NEW').map(r=>[r.reference!,r])),seenFamily=new Set<string>()
-  for(let r=3;r<=familySheet.rowCount;r++){const line=familySheet.getRow(r),get=(h:string)=>inputText(line.getCell(familyColumns.get(h)!)),id=get(ID_HEADER),ref=familyColumns.has(REF_HEADER)?get(REF_HEADER).toUpperCase():'';if(!hasData(line))continue
+  for(let r=3;r<=familySheet.rowCount;r++){const line=familySheet.getRow(r),get=(h:string)=>familyColumns.has(h)?inputText(line.getCell(familyColumns.get(h)!)):'',id=get(ID_HEADER),ref=familyColumns.has(REF_HEADER)?get(REF_HEADER).toUpperCase():'';if(!hasData(line))continue
    if(id&&ref)throw Error(`Family row ${r}: use Employee ID or NEW Upload reference, not both`)
    if(!id&&!ref)throw Error(`Family row ${r}: Employee ID or NEW Upload reference is required`)
    const owner=id?byId.get(id):byRef.get(ref);if(!owner)throw Error(`Family row ${r}: Employee ID must also appear on Employees sheet`)
@@ -142,7 +151,7 @@ export async function parseWorkbook(bytes:Buffer,fields:Field[]):Promise<UploadR
    const number=type==='Spouse'?0:Number(get('Child Number'));if(type==='Child'&&(!Number.isInteger(number)||number<1||number>20))throw Error(`Family row ${r}: Child Number must be 1 to 20`)
    const identifier=`${id||ref}:${type}:${number}`;if(seenFamily.has(identifier))throw Error(`Family member ${identifier} appears more than once`);seenFamily.add(identifier)
    const mode=get(MODE_HEADER).toUpperCase();if(owner.action!=='NEW'&&mode!=='YES'&&mode!=='NO')throw Error(`Family row ${r}: choose YES or NO`)
-   const values:Record<string,string>={};for(const [header,key]of [['Member Full Name','full_name'],['Age','age'],['Pre-existing Conditions','pre_existing_conditions'],['CNIC','cnic']]){const value=get(header);if(value)values[key]=value}
+   const values:Record<string,string>={};for(const [header,key]of [['Member Full Name','full_name'],['Age','age'],['Date of Birth','date_of_birth'],['Pre-existing Conditions','pre_existing_conditions'],['CNIC','cnic']]){const value=get(header);if(value)values[key]=value}
    owner.family.push({type,childNumber:number,replace:owner.action==='NEW'||mode==='YES',values})
   }
  }
@@ -163,10 +172,10 @@ export function planUpload(rows:UploadRow[],snapshot:Snapshot,fields:Field[]):Pl
   const isNew=row.action==='NEW',reference=row.reference||row.employeeNo
   const employee=isNew?{id:reference,employee_no:'',full_name:'',designation:null,department:null,reports_to_text:null,location:null,record_status:null,source_note:null,updated_at:''}:employees.get(row.employeeNo)
   if(!employee)throw Error(`Employee ID ${row.employeeNo} does not exist`)
-  const detail=isNew?{employee_id:reference,profile:{},payroll_aug_2026:{},updated_at:''}:details.get(employee.id)
+  const detail=isNew?{employee_id:reference,profile:{},payroll_sep_2026:{},updated_at:''}:details.get(employee.id)
   if(!detail)throw Error(`Employee details missing for ${row.employeeNo}`)
   const family=families.get(employee.id),children=[...(family?.children??[])],planned:PlannedRow={action:isNew?'NEW':'UPDATE',reference,employeeNo:row.employeeNo,name:row.name,replace:row.replace,expectedCoreUpdatedAt:employee.updated_at,expectedDetailsUpdatedAt:detail.updated_at,expectedFamilyUpdatedAt:family?.updated_at??null,core:{},profile:{},payroll:{},family:[],fill:0,overwrite:0,skipped:0,unchanged:0,changes:[]}
-  for(const bucket of ['core','profile','payroll'] as const)for(const [key,after]of Object.entries(row[bucket])){const before=cellText(bucket==='core'?employee[key as keyof EmployeeRow]:bucket==='profile'?(detail.profile??{})[key]:(detail.payroll_aug_2026??{})[key]);if(before===after){planned.unchanged++;continue}
+  for(const bucket of ['core','profile','payroll'] as const)for(const [key,after]of Object.entries(row[bucket])){const before=cellText(bucket==='core'?employee[key as keyof EmployeeRow]:bucket==='profile'?(detail.profile??{})[key]:(detail.payroll_sep_2026??{})[key]);if(before===after){planned.unchanged++;continue}
    const action: 'fill'|'replace'|'skip'=before?'replace':'fill';const allowed=action==='fill'||row.replace
    if(allowed){planned[bucket][key]=after;if(action==='fill')planned.fill++;else planned.overwrite++}else planned.skipped++
    planned.changes.push({field:labels.get(`${bucket}.${key}`)??key,before,after,action:allowed?action:'skip'})

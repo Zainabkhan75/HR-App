@@ -1,9 +1,9 @@
-export type FamilyMember={full_name:string;age:number;pre_existing_conditions:string;cnic:string}
+export type FamilyMember={full_name:string;age:number;date_of_birth?:string;pre_existing_conditions:string;cnic:string}
 export type FamilyDetails={spouse:FamilyMember|null;children:FamilyMember[];updated_at:string|null}
-export type MemberDraft={key:string;full_name:string;age:string;pre_existing_conditions:string;cnic:string}
-export const memberDraft=(member?:FamilyMember):MemberDraft=>({key:crypto.randomUUID(),full_name:member?.full_name??'',age:member?String(member.age):'',pre_existing_conditions:member?.pre_existing_conditions??'',cnic:member?.cnic??''})
+export type MemberDraft={key:string;full_name:string;age:string;date_of_birth:string;pre_existing_conditions:string;cnic:string}
+export const memberDraft=(member?:FamilyMember):MemberDraft=>({key:crypto.randomUUID(),full_name:member?.full_name??'',age:member?String(member.age):'',date_of_birth:member?.date_of_birth??'',pre_existing_conditions:member?.pre_existing_conditions??'',cnic:member?.cnic??''})
 export function memberValue(draft:MemberDraft):FamilyMember{
- return {full_name:draft.full_name.trim(),age:Number(draft.age),pre_existing_conditions:draft.pre_existing_conditions.trim(),cnic:draft.cnic.replace(/[-\s]/g,'')}
+ return {full_name:draft.full_name.trim(),age:Number(draft.age),date_of_birth:draft.date_of_birth||undefined,pre_existing_conditions:draft.pre_existing_conditions.trim(),cnic:draft.cnic.replace(/[-\s]/g,'')}
 }
 export function memberError(draft:MemberDraft,isSpouse=false):string{
  if(!draft.full_name.trim())return 'Enter a name for each dependant.'
@@ -15,6 +15,6 @@ export function memberError(draft:MemberDraft,isSpouse=false):string{
 }
 
 export function familySnapshot(value:Pick<FamilyDetails,'spouse'|'children'>):string{
- const canonical=(person:FamilyMember)=>({full_name:person.full_name,age:person.age,pre_existing_conditions:person.pre_existing_conditions,cnic:person.cnic})
+ const canonical=(person:FamilyMember)=>({full_name:person.full_name,age:person.age,date_of_birth:person.date_of_birth||undefined,pre_existing_conditions:person.pre_existing_conditions,cnic:person.cnic})
  return JSON.stringify({spouse:value.spouse?canonical(value.spouse):null,children:value.children.map(canonical)})
 }
