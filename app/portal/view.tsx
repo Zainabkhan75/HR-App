@@ -80,7 +80,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
  }
 
  return <main className="mobile-shell ess-shell">
-  <header className="ess-header"><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div><div>{isAdmin?<a href="/employees">Admin portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
+  <header className="ess-header"><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
   <nav className="ess-nav" aria-label="Self-service sections">{tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}{['Leave application','Inbox',...(isManager?['Manager approvals']:[])].map(label=><button key={label} type="button" disabled title="Coming in Phase 2">{label} · Coming in Phase 2</button>)}</nav>
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}

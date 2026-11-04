@@ -51,3 +51,5 @@ select,textarea{font:inherit;border:1px solid #cfd8e1;border-radius:7px;padding:
 @media(max-width:700px){.shell>header{flex-wrap:wrap}.head-actions{justify-content:flex-start}}
 label{text-transform:capitalize}
 label input,label select,label textarea,label button{text-transform:none}
+.tabs .tab,.ess-nav button,[role="tab"]{text-transform:capitalize}
+.work-sidebar nav button,.work-sidebar nav a,.head-actions>a{text-transform:capitalize}
