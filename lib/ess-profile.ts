@@ -1,7 +1,7 @@
 export type Values=Record<string,string|null>
 export type EmployeeProfile={
  employee:{employee_no:string;full_name:string;designation:string|null;department:string|null;location:string|null;reports_to_text:string|null;employment_state:string;leaving_date?:string|null;record_status?:string|null;source_note?:string|null}
- contacts:Values;personal:Values;employment:Values;rewards:Values;verification?:Values;payroll_sep_2026?:Values
+ contacts:Values;personal:Values;employment:Values;rewards:Values;payroll_sep_2026?:Values
  core_updated_at:string;profile_updated_at:string|null
 }
 export const contactFields=[
@@ -37,10 +37,9 @@ export const editableProfileSections=[
  {title:'Employment Information',fields:employmentFields},
  {title:'Salary & Benefits',fields:rewardFields},
  {title:'Salary Transfer & Bank Details',fields:[['salary_transfer_method','Salary Transfer Method'],['bank_name','Bank Name'],['bank_branch','Bank Branch'],['bank_account_title','Bank Account Title'],['bank_account_number','Bank Account Number'],['iban','IBAN']]},
- {title:'Source & Verification',fields:[['source','Source'],['reconciliation_status','Reconciliation Status'],['possible_existing_database_record_id','Possible Existing Database Record ID'],['notes','Notes']]},
 ] as const
 export const profileDraft=(profile:EmployeeProfile):Record<string,string>=>{
- const values={...profile.employee,...profile.personal,...profile.employment,...profile.rewards,...profile.verification}
+ const values={...profile.employee,...profile.personal,...profile.employment,...profile.rewards}
  return Object.fromEntries(editableProfileSections.flatMap(section=>section.fields.map(([key])=>[key,String(values[key as keyof typeof values]??'')])))
 }
 export const profilePatch=(profile:EmployeeProfile,draft:Record<string,string>):Record<string,string>=>{
