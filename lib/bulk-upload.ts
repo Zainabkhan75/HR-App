@@ -25,11 +25,11 @@ export const MODE_HEADER='Replace existing values? (YES/NO)'
 export const ACTION_HEADER='Action (NEW/UPDATE)'
 export const REF_HEADER='Upload reference'
 const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC',REF_HEADER,'Date of Birth']
-const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER])
+const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,'Profile | Reporting to'])
 export function fieldsFor(snapshot:Snapshot):Field[]{
  const profile=new Map<string,string>()
- for(const section of sections)if(section.key!=='current-payroll')for(const label of section.labels)profile.set(fieldKey(label),label)
- for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!profile.has(key)&&!retiredSalaryKeys.has(key)&&!['reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key))profile.set(key,key.replaceAll('_',' '))}
+ for(const section of sections)if(section.key!=='current-payroll')for(const label of section.labels)if(label!=='Reporting to')profile.set(fieldKey(label),label)
+ for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!profile.has(key)&&!retiredSalaryKeys.has(key)&&!['reporting_line_basis','reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key))profile.set(key,key.replaceAll('_',' '))}
  return [...coreFields,...[...profile].map(([key,label])=>({header:`Profile | ${label}`,bucket:'profile' as const,key})),...payrollFields.map(label=>({header:`Employees Payroll Details | ${label}`,bucket:'payroll' as const,key:fieldKey(label)}))]
 }
 export function cellText(value:unknown):string{
