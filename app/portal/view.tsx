@@ -9,7 +9,7 @@ import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
-const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','Employees Payroll Details']] as const
+const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','My Payslip']] as const
 type Tab=typeof tabs[number][0]
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
@@ -98,7 +98,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   </section>:null}
 
   {tab==='payroll'?<section className="panel">
-   <div className="ess-section-heading"><h2>Employees Payroll Details</h2><span className="ess-readonly">View Only</span></div>
+   <div className="ess-section-heading"><h2>My Payslip</h2><span className="ess-readonly">View Only</span></div>
    <p>{payrollPeriodLabel}</p>
    <FieldList fields={payrollFields.map(label=>[fieldKey(label),label] as const)} values={{
     ...profile.payroll_sep_2026, employee_id:employee.employee_no, full_name:employee.full_name,
