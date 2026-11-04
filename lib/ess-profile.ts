@@ -21,9 +21,6 @@ export const backgroundSections=[
  {title:'Education',fields:[['latest_education','Qualification and institution'],['education_start','From (as submitted)'],['education_end','To (as submitted)']]},
 ] as const
 export const rewardFields=[
- ['gross_salary_month_pkr','Gross salary / month (PKR)'],['fuel_month_pkr','Fuel / month (PKR)'],
- ['car_allowance_month_pkr','Car allowance / month (PKR)'],['total_package_month_pkr','Total package / month (PKR)'],
- ['vehicle_maintenance_month_pkr','Vehicle maintenance / month (PKR)'],['provident_fund_month_pkr','Provident fund / month (PKR)'],
  ['medical_hospitalisation_limit_person_year_pkr','Medical hospitalisation limit / person / year (PKR)'],
  ['life_insurance','Life insurance'],['car_entitlement','Car entitlement'],
 ] as const
