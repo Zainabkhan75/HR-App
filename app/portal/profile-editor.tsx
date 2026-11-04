@@ -57,7 +57,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   finally{setBusy(false)}
  }
  return <section className="panel" hidden={!active}>
-  <h2>My profile</h2><p>You can update the details below directly.</p><p className="mono">Employee ID: {base.employee.employee_no} (fixed)</p>
+  <h2>My profile</h2><p>You can update the details below directly.</p><p className="mono">Employee ID: {base.employee.employee_no} (fixed) · Employment Status: {base.employee.employment_state}</p>
   {error?<p role="alert" className="error">{error}</p>:null}{notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div><p>Reloading clears unsaved profile edits.</p><button type="button" disabled={busy} onClick={()=>void reload()}>Reload latest profile</button></div>:null}
   {optionsError?<p role="alert" className="error">{optionsError}</p>:null}
@@ -71,7 +71,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
     </select>:key==='probation'?<>
      <input type="number" min={0} max={6} step={1} inputMode="numeric" value={validProbation(draft.probation)?draft.probation:''} readOnly={draft.employment_type==='Permanent'} disabled={busy} placeholder="0 to 6" aria-describedby="probation-help" onChange={event=>setDraft(old=>({...old,probation:event.target.value}))}/>
      <span id="probation-help" className="field-hint">{draft.employment_type==='Permanent'?'Permanent: 3 months.':!validProbation(draft.probation)?'Current recorded text: '+draft.probation+'. Enter 0–6 months to replace it.':'Enter a whole number from 0 to 6 months.'}</span>
-    </>:<input type={key==='email'?'email':'text'} required={key==='full_name'} maxLength={key==='email'?254:1000} value={draft[key]} disabled={busy} placeholder={key==='date_of_joining'?'DD/MM/YYYY (e.g. 27/10/2026)':undefined} aria-describedby={key==='date_of_joining'?'joining-date-help':undefined} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}/>}
+    </>:<input type={key==='email'?'email':key==='leaving_date'?'date':'text'} required={key==='full_name'} maxLength={key==='email'?254:1000} value={draft[key]} disabled={busy} placeholder={key==='date_of_joining'?'DD/MM/YYYY (e.g. 27/10/2026)':undefined} aria-describedby={key==='date_of_joining'?'joining-date-help':undefined} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}/>}
     {key==='date_of_joining'?<span id="joining-date-help" className="field-hint">DD/MM/YYYY — for example, 27/10/2026.</span>:null}
    </label>)}</div></div>)}
    <p className="muted">Changing the work email does not change your sign-in email. Editing reporting-line text does not change manager permissions or team access.</p>

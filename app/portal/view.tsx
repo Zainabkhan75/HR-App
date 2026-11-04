@@ -4,11 +4,12 @@ import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import FamilyEditor from './family-editor'
 import ProfileEditor from './profile-editor'
-import {backgroundSections,contactFields,employmentFields,rewardFields,contactDraft,contactPatch} from '../../lib/ess-profile'
+import {fieldKey,payrollFields} from '../employees/field-config'
+import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
-const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['background','Emergency & background'],['pay','Salary & benefits']] as const
+const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','Employees Payroll Details']] as const
 type Tab=typeof tabs[number][0]
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
@@ -88,8 +89,6 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
 
   <ProfileEditor active={tab==='profile'} initialProfile={profile} onDirtyChange={setProfileDirty} onBusyChange={setProfileBusy} onSaved={updated=>{setProfile(updated);if(!dirty){setDraft(contactDraft(updated.contacts));setContactVersion(updated.profile_updated_at)}}}/>
   <FamilyEditor active={tab==='family'} onDirtyChange={setFamilyDirty} onBusyChange={setFamilyBusy}/>
-  {tab==='background'?<section className="panel"><h2>Emergency & background</h2><p>Details submitted through the employee verification form. Contact HR if these need correction.</p>{backgroundSections.map(section=><div key={section.title}><h3>{section.title}</h3><FieldList fields={section.fields} values={profile.personal}/></div>)}</section>:null}
-
   {tab==='contact'?<section className="panel"><h2>My contact details</h2><p>You can update these details directly. Changes are saved to your HR record.</p>
    <form onSubmit={saveContact} className="ess-contact-form">
     {contactFields.map(field=><label key={field.key}>{field.label}{field.type==='textarea'?<textarea rows={3} maxLength={field.maxLength} value={draft[field.key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[field.key]:event.target.value}))} autoComplete="street-address"/>:<input type={field.type} maxLength={field.maxLength} value={draft[field.key]} disabled={busy} autoComplete={field.type==='email'?'email':'tel'} onChange={event=>setDraft(old=>({...old,[field.key]:event.target.value}))}/>}</label>)}
@@ -98,11 +97,14 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
    </form>
   </section>:null}
 
-  {tab==='pay'?<section className="panel"><div className="ess-section-heading"><h2>My salary & benefits</h2><span className="ess-readonly">View only</span></div>
-   <p>These are the values currently recorded in your employee profile. Missing information is shown as “Not recorded”. Contact HR if a value needs checking.</p>
-   <FieldList fields={rewardFields} values={profile.rewards}/>
+  {tab==='payroll'?<section className="panel">
+   <div className="ess-section-heading"><h2>Employees Payroll Details</h2><span className="ess-readonly">View Only</span></div>
+   <p>September 2026</p>
+   <FieldList fields={payrollFields.map(label=>[fieldKey(label),label] as const)} values={{
+    ...profile.payroll_sep_2026, employee_id:employee.employee_no, full_name:employee.full_name,
+    designation:employee.designation, date_of_joining:profile.employment.date_of_joining,
+   }}/>
   </section>:null}
-
 
   {isManager?<section className="panel"><h2>My team</h2>{teamUnavailable?<p role="alert">Your team could not be loaded. Please try again later.</p>:team.length===0?<p>No verified direct reports have been linked yet.</p>:<ul className="team-list">{team.map(member=><li key={member.employee_no}><strong>{member.full_name}</strong><span>{member.employee_no} · {display(member.designation)}</span></li>)}</ul>}</section>:null}
  </main>

@@ -1,7 +1,7 @@
 export type Values=Record<string,string|null>
 export type EmployeeProfile={
- employee:{employee_no:string;full_name:string;designation:string|null;department:string|null;location:string|null;reports_to_text:string|null;employment_state:string}
- contacts:Values;personal:Values;employment:Values;rewards:Values;payroll_aug_2026:Values
+ employee:{employee_no:string;full_name:string;designation:string|null;department:string|null;location:string|null;reports_to_text:string|null;employment_state:string;leaving_date?:string|null;record_status?:string|null;source_note?:string|null}
+ contacts:Values;personal:Values;employment:Values;rewards:Values;verification?:Values;payroll_sep_2026?:Values
  core_updated_at:string;profile_updated_at:string|null
 }
 export const contactFields=[
@@ -13,6 +13,7 @@ export const contactFields=[
 export const employmentFields=[
  ['employment_type','Employment type'],['date_of_joining','Date of joining'],
  ['work_location_mobility','Work location / mobility'],['probation','Probation'],
+ ['offer_date','Offer Date'],['acceptance_joining_confirmation_due','Acceptance / Joining Confirmation Due'],
 ] as const
 export const backgroundSections=[
  {title:'Personal information',fields:[['date_of_birth','Date of birth (as submitted)'],['permanent_address','Permanent address']]},
@@ -24,27 +25,23 @@ export const rewardFields=[
  ['medical_hospitalisation_limit_person_year_pkr','Medical hospitalisation limit / person / year (PKR)'],
  ['life_insurance','Life insurance'],['car_entitlement','Car entitlement'],
 ] as const
-export const payrollFields=[
- ['payroll_month','Payroll month'],['payroll_days_aug_2026','Payroll days'],
- ['payroll_fixed_salary_aug_2026_pkr','Fixed salary (PKR)'],['payroll_salary_earned_aug_2026_pkr','Salary earned (PKR)'],
- ['payroll_overtime_incentive_aug_2026_pkr','Overtime / incentive (PKR)'],['payroll_deduction_aug_2026_pkr','Deduction (PKR)'],
- ['payroll_total_earned_salary_aug_2026_pkr','Total earned salary (PKR)'],['payroll_wht_tax_aug_2026_pkr','Withholding tax (PKR)'],
- ['payroll_lease_other_pf_deduction_aug_2026_pkr','Lease / other / PF deduction (PKR)'],['payroll_payable_salary_aug_2026_pkr','Payable salary (PKR)'],
- ['payroll_fuel_vehicle_allowance_aug_2026_pkr','Fuel + vehicle allowance (PKR)'],['payroll_total_compensation_aug_2026_pkr','Total compensation (PKR)'],
-] as const
 export const contactDraft=(values:Values):Record<string,string>=>Object.fromEntries(contactFields.map(field=>[field.key,values[field.key]??'']))
 export const contactPatch=(values:Values,draft:Record<string,string>):Record<string,string>=>Object.fromEntries(
  contactFields.filter(field=>(draft[field.key]??'').trim()!==(values[field.key]??'').trim()).map(field=>[field.key,(draft[field.key]??'').trim()])
 )
 
 export const editableProfileSections=[
- {title:'Core information',fields:[['full_name','Full name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports to (recorded)']]},
- {title:'Personal information',fields:[['cnic_passport','CNIC / passport'],['email','Work email']]},
- {title:'Employment information',fields:[['employment_type','Employment type'],['date_of_joining','Date of joining'],['work_location_mobility','Work location / mobility'],['probation','Probation']]},
+ {title:'Core Information',fields:[['full_name','Full Name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports To'],['leaving_date','Leaving Date'],['record_status','Source Record Status'],['source_note','Source / Verification Note']]},
+ {title:'Personal Information',fields:[['cnic_passport','CNIC / Passport'],['email','Work Email'],...backgroundSections[0].fields]},
+ ...backgroundSections.slice(1),
+ {title:'Employment Information',fields:employmentFields},
+ {title:'Salary & Benefits',fields:rewardFields},
+ {title:'Salary Transfer & Bank Details',fields:[['salary_transfer_method','Salary Transfer Method'],['bank_name','Bank Name'],['bank_branch','Bank Branch'],['bank_account_title','Bank Account Title'],['bank_account_number','Bank Account Number'],['iban','IBAN']]},
+ {title:'Source & Verification',fields:[['source','Source'],['reconciliation_status','Reconciliation Status'],['possible_existing_database_record_id','Possible Existing Database Record ID'],['notes','Notes']]},
 ] as const
 export const profileDraft=(profile:EmployeeProfile):Record<string,string>=>{
- const values={...profile.employee,...profile.personal,...profile.employment}
- return Object.fromEntries(editableProfileSections.flatMap(section=>section.fields.map(([key])=>[key,values[key as keyof typeof values]??''])))
+ const values={...profile.employee,...profile.personal,...profile.employment,...profile.rewards,...profile.verification}
+ return Object.fromEntries(editableProfileSections.flatMap(section=>section.fields.map(([key])=>[key,String(values[key as keyof typeof values]??'')])))
 }
 export const profilePatch=(profile:EmployeeProfile,draft:Record<string,string>):Record<string,string>=>{
  const baseline=profileDraft(profile)
