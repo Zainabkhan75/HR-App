@@ -26,7 +26,7 @@ export async function POST(request:Request){
   const changes=planned.filter(r=>r.fill+r.overwrite>0)
   if(!changes.length)return json({applied:0,fields:0})
   const payload=changes.map(r=>({employee_no:r.employeeNo,expected_core_updated_at:r.expectedCoreUpdatedAt,expected_details_updated_at:r.expectedDetailsUpdatedAt,expected_family_updated_at:r.expectedFamilyUpdatedAt,replace:r.replace,core:r.core,profile:r.profile,payroll:r.payroll,family:r.family}))
-  const {data,error}=await serviceDb().rpc('apply_employee_bulk_upload',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
+  const {data,error}=await serviceDb().rpc('apply_september_employee_bulk_upload',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
   if(error) return json({error:'Upload was not applied. Employee data may have changed; preview again.',detail:error.message},409)
   return json({applied:changes.length,fields:data?.fields??changes.reduce((n,r)=>n+r.fill+r.overwrite,0)})
  }catch(error){return json({error:error instanceof Error?error.message:'Upload failed'},400)}
