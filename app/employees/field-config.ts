@@ -1,3 +1,5 @@
+export const payrollPeriodLabel = 'September 2026'
+
 export const payrollFields = [
  'Employee ID#', 'Full Name', 'New Card #', 'Date of Joining', 'Designation', 'No. Days',
  'Gross/ Fixed Salary (Rs.)', 'Salary Earned (Rs.)', 'Over Time Minutes',
@@ -12,7 +14,7 @@ export const sections = [
  {key:'personal', title:'Personal & Contact', labels:['CNIC / Passport','Work Mobile Number','Work Email','Personal Email','Personal Mobile Number','Current Address','Date of Birth','Permanent Address (as per ID card)','Emergency Contact Full Name','Emergency Contact Relationship','Primary Emergency Contact Number','Alternative Emergency Number']},
  {key:'background', title:'Previous Employment & Education', labels:['Previous Employer Company Name','Previous Designation','Previous Employment Start','Previous Employment End','Latest Education','Education Start','Education End']},
  {key:'employment', title:'Employment & Organisation', labels:['Employment Type','Date of Joining','Work Location / Mobility','Probation','Offer Date','Acceptance / Joining Confirmation Due','Reporting to']},
- {key:'salary', title:'Salary (HR only)', labels:['Medical Hospitalisation Limit / Person / Year (PKR)','Life Insurance','Car Entitlement','Salary Transfer Method','Bank Name','Bank Branch','Bank Account Title','Bank Account Number','IBAN']},
+ {key:'salary', title:'Salary Slip', labels:['Medical Hospitalisation Limit / Person / Year (PKR)','Life Insurance','Car Entitlement','Salary Transfer Method','Bank Name','Bank Branch','Bank Account Title','Bank Account Number','IBAN']},
  {key:'verification', title:'Source & Verification', labels:['Source','Reconciliation Status','Possible Existing Database Record ID','Notes']},
 ] as const
 export const retiredSalaryKeys = new Set([

@@ -4,7 +4,7 @@ import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import FamilyEditor from './family-editor'
 import ProfileEditor from './profile-editor'
-import {fieldKey,payrollFields} from '../employees/field-config'
+import {fieldKey,payrollFields,payrollPeriodLabel} from '../employees/field-config'
 import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
 
@@ -99,7 +99,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
 
   {tab==='payroll'?<section className="panel">
    <div className="ess-section-heading"><h2>Employees Payroll Details</h2><span className="ess-readonly">View Only</span></div>
-   <p>September 2026</p>
+   <p>{payrollPeriodLabel}</p>
    <FieldList fields={payrollFields.map(label=>[fieldKey(label),label] as const)} values={{
     ...profile.payroll_sep_2026, employee_id:employee.employee_no, full_name:employee.full_name,
     designation:employee.designation, date_of_joining:profile.employment.date_of_joining,
