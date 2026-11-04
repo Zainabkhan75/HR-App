@@ -9,9 +9,9 @@ function numericValue(value: string | number) {
  return typeof value === 'number' || /^-?\d+(?:\.\d+)?$/.test(value) ? Number(value) : NaN
 }
 
-export function useTableSort(initialColumn?: string) {
+export function useTableSort(initialColumn?: string, initialAscending = true) {
  const [sort, setSort] = useState<{column: string; ascending: boolean} | null>(
-  initialColumn ? {column: initialColumn, ascending: true} : null
+  initialColumn ? {column: initialColumn, ascending: initialAscending} : null
  )
 
  function sortRows<Row>(rows: readonly Row[], valueFor: (row: Row, column: string) => SortValue): readonly Row[] {
