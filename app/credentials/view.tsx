@@ -1,4 +1,5 @@
 'use client'
+import {useTableSort} from '../sortable-table'
 import {useEffect,useMemo,useState} from 'react'
 
 type Row={employeeId:string;name:string;username:string;linked:boolean}
@@ -6,6 +7,7 @@ type Generated={employeeId:string;name:string;username:string;password:string}
 export default function Credentials(){
  const [rows,setRows]=useState<Row[]>([]),[generated,setGenerated]=useState<Record<string,string>>({}),[selected,setSelected]=useState<string[]>([]),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
  useEffect(()=>{fetch('/api/admin/credentials',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Could not load employee accounts');return r.json()}).then(d=>setRows(d.rows)).catch(e=>setError(e.message))},[])
+ const credentialsSort=useTableSort()
  const shown=useMemo(()=>rows.filter(r=>(r.employeeId+' '+r.name+' '+r.username).toLowerCase().includes(search.toLowerCase().trim())),[rows,search])
  function toggle(id:string){setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id])}
  async function generate(){
@@ -34,6 +36,6 @@ export default function Credentials(){
  <div className="bar"><label>Find employee<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, name or username"/></label><button className="secondary" disabled={busy||!shown.some(r=>r.linked)} onClick={()=>setSelected(shown.filter(r=>r.linked).map(r=>r.employeeId))}>Select all linked shown</button><button disabled={busy||!selected.length} onClick={generate}>Generate for selected ({selected.length})</button><button className="secondary" onClick={download}>Download table CSV</button></div>
  {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
  <p className="muted">{rows.length} employees · {rows.filter(r=>r.linked).length} active linked accounts · {Object.keys(generated).length} passwords shown</p>
- <div className="tablewrap report-table" tabIndex={0}><table><thead><tr><th scope="col">Select</th><th scope="col">Emp ID</th><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Password</th></tr></thead><tbody>{shown.map(r=><tr key={r.employeeId}><td><input aria-label={`Select ${r.name}`} type="checkbox" disabled={!r.linked||busy} checked={selected.includes(r.employeeId)} onChange={()=>toggle(r.employeeId)}/></td><td>{r.employeeId}</td><td>{r.name}</td><td>{r.username||<span className="muted">No linked account</span>}</td><td className="mono">{generated[r.employeeId]??<span className="muted">Not available</span>}</td></tr>)}</tbody></table></div>
+ <div className="tablewrap report-table" tabIndex={0}><table><thead><tr><th scope="col">Select</th>{credentialsSort.heading('employeeId','Emp ID')}{credentialsSort.heading('name','Name')}{credentialsSort.heading('username','Username')}{credentialsSort.heading('password','Password')}</tr></thead><tbody>{credentialsSort.sortRows(shown,(row,column)=>column==='password'?generated[row.employeeId]:row[column as 'employeeId'|'name'|'username']).map(r=><tr key={r.employeeId}><td><input aria-label={`Select ${r.name}`} type="checkbox" disabled={!r.linked||busy} checked={selected.includes(r.employeeId)} onChange={()=>toggle(r.employeeId)}/></td><td>{r.employeeId}</td><td>{r.name}</td><td>{r.username||<span className="muted">No linked account</span>}</td><td className="mono">{generated[r.employeeId]??<span className="muted">Not available</span>}</td></tr>)}</tbody></table></div>
  </section></main>
 }
