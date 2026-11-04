@@ -8,7 +8,7 @@ export const contactFields=[
  {key:'mobile',label:'Work Mobile Number',type:'tel',maxLength:64},
  {key:'personal_mobile',label:'Personal Mobile Number',type:'tel',maxLength:64},
  {key:'personal_email',label:'Personal email',type:'email',maxLength:254},
- {key:'personal_address',label:'Personal address',type:'textarea',maxLength:1000},
+ {key:'personal_address',label:'Current Address',type:'textarea',maxLength:1000},
 ] as const
 export const employmentFields=[
  ['employment_type','Employment type'],['date_of_joining','Date of joining'],
@@ -16,7 +16,7 @@ export const employmentFields=[
  ['offer_date','Offer Date'],['acceptance_joining_confirmation_due','Acceptance / Joining Confirmation Due'],
 ] as const
 export const backgroundSections=[
- {title:'Personal information',fields:[['date_of_birth','Date of birth (as submitted)'],['permanent_address','Permanent address']]},
+ {title:'Personal information',fields:[['date_of_birth','Date of birth (as submitted)'],['permanent_address','Permanent Address (as per ID card)']]},
  {title:'Emergency contact',fields:[['emergency_contact_full_name','Full name'],['emergency_contact_relationship','Relationship'],['primary_emergency_contact_number','Primary number'],['alternative_emergency_number','Alternative number']]},
  {title:'Previous employment',fields:[['previous_employer_company_name','Employer / company'],['previous_designation','Designation'],['previous_employment_start','From (as submitted)'],['previous_employment_end','To (as submitted)']]},
  {title:'Education',fields:[['latest_education','Qualification and institution'],['education_start','From (as submitted)'],['education_end','To (as submitted)']]},

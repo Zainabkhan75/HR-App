@@ -26,10 +26,12 @@ export const ACTION_HEADER='Action (NEW/UPDATE)'
 export const REF_HEADER='Upload reference'
 const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC',REF_HEADER,'Date of Birth']
 const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,'Profile | Reporting to'])
-const legacyMobileHeaders: Record<string,string> = {
+const legacyProfileHeaders: Record<string,string> = {
  'Profile | Mobile': 'Profile | Work Mobile Number',
  'Profile | Mobile number': 'Profile | Work Mobile Number',
  'Profile | Personal Mobile': 'Profile | Personal Mobile Number',
+ 'Profile | Personal Address': 'Profile | Current Address',
+ 'Profile | Permanent Address': 'Profile | Permanent Address (as per ID card)',
 }
 export function fieldsFor(snapshot:Snapshot):Field[]{
  const profile=new Map<string,string>()
@@ -118,7 +120,7 @@ export async function parseWorkbook(bytes:Buffer,fields:Field[]):Promise<UploadR
  const sheet=book.getWorksheet('Employees');if(!sheet)throw Error('The Employees sheet is missing')
  if(sheet.rowCount>1002)throw Error('Maximum 1,000 employee rows per upload')
  const known=new Map(fields.map(f=>[f.header,f]));const headers=new Map<string,number>()
- sheet.getRow(2).eachCell({includeEmpty:false},(cell,col)=>{const label=inputText(cell),header=legacyMobileHeaders[label]??label;if(headers.has(header))throw Error(`Duplicate column: ${header}`);if(header&&!known.has(header)&&!reserved.has(header))throw Error(`Unknown column: ${header}`);headers.set(header,col)})
+ sheet.getRow(2).eachCell({includeEmpty:false},(cell,col)=>{const label=inputText(cell),header=legacyProfileHeaders[label]??label;if(headers.has(header))throw Error(`Duplicate column: ${header}`);if(header&&!known.has(header)&&!reserved.has(header))throw Error(`Unknown column: ${header}`);headers.set(header,col)})
  if(!headers.has(ID_HEADER)||!headers.has('Employee Name')||!headers.has(MODE_HEADER))throw Error('Employee ID, Employee Name and replacement choice columns are required')
  const result:UploadRow[]=[],seen=new Set<string>(),references=new Set<string>()
  for(let r=3;r<=sheet.rowCount;r++){

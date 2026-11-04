@@ -63,7 +63,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   {optionsError?<p role="alert" className="error">{optionsError}</p>:null}
   <button type="button" className="link" disabled={busy||optionsBusy} onClick={()=>void loadOptions()}>{optionsBusy?'Loading dropdowns...':'Refresh dropdown lists'}</button>
   <form onSubmit={save}>
-   {editableProfileSections.map(section=><div key={section.title}><h3>{section.title}</h3><div className="family-fields">{section.fields.map(([key,label])=><label key={key}>
+   {editableProfileSections.map(section=><div key={section.title}><h3>{section.title}</h3><div className="family-fields">{section.fields.map(([key,label])=><label key={key} className={key==="permanent_address"?"field-label-exact":undefined}>
     {key==='probation'?'Probation (months)':label}
     {isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value}))}>
      <option value="">{options?'Select an option':'Loading options...'}</option>

@@ -9,7 +9,7 @@ export const payrollFields = [
 
 export const sections = [
  {key:'current-payroll', title:'Employees Payroll Details', labels:payrollFields},
- {key:'personal', title:'Personal & Contact', labels:['CNIC / Passport','Work Mobile Number','Work Email','Personal Email','Personal Mobile Number','Personal Address','Date of Birth','Permanent Address','Emergency Contact Full Name','Emergency Contact Relationship','Primary Emergency Contact Number','Alternative Emergency Number']},
+ {key:'personal', title:'Personal & Contact', labels:['CNIC / Passport','Work Mobile Number','Work Email','Personal Email','Personal Mobile Number','Current Address','Date of Birth','Permanent Address (as per ID card)','Emergency Contact Full Name','Emergency Contact Relationship','Primary Emergency Contact Number','Alternative Emergency Number']},
  {key:'background', title:'Previous Employment & Education', labels:['Previous Employer Company Name','Previous Designation','Previous Employment Start','Previous Employment End','Latest Education','Education Start','Education End']},
  {key:'employment', title:'Employment & Organisation', labels:['Employment Type','Date of Joining','Work Location / Mobility','Probation','Offer Date','Acceptance / Joining Confirmation Due','Reporting to']},
  {key:'salary', title:'Salary (HR only)', labels:['Medical Hospitalisation Limit / Person / Year (PKR)','Life Insurance','Car Entitlement','Salary Transfer Method','Bank Name','Bank Branch','Bank Account Title','Bank Account Number','IBAN']},
@@ -22,5 +22,5 @@ export const retiredSalaryKeys = new Set([
 export const payrollProfileFields = new Set(['Employee ID#','Full Name','Date of Joining','Designation'])
 
 export const originalHeaders = ['Database Record ID','Employee Name','Designation','Department / Function (source mapping)','Reports To','Location','Record Status', ...sections.flatMap(s=>[...s.labels])]
-const savedFieldKeys: Record<string,string> = {'Work Mobile Number':'mobile','Personal Mobile Number':'personal_mobile','Work Email':'email','Reporting to':'reporting_line_basis'}
+const savedFieldKeys: Record<string,string> = {'Work Mobile Number':'mobile','Personal Mobile Number':'personal_mobile','Work Email':'email','Current Address':'personal_address','Permanent Address (as per ID card)':'permanent_address','Reporting to':'reporting_line_basis'}
 export const fieldKey = (label:string)=>savedFieldKeys[label] ?? label.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')
