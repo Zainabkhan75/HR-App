@@ -5,8 +5,8 @@ export type EmployeeProfile={
  core_updated_at:string;profile_updated_at:string|null
 }
 export const contactFields=[
- {key:'mobile',label:'Mobile number',type:'tel',maxLength:64},
- {key:'personal_mobile',label:'Personal mobile number',type:'tel',maxLength:64},
+ {key:'mobile',label:'Work Mobile Number',type:'tel',maxLength:64},
+ {key:'personal_mobile',label:'Personal Mobile Number',type:'tel',maxLength:64},
  {key:'personal_email',label:'Personal email',type:'email',maxLength:254},
  {key:'personal_address',label:'Personal address',type:'textarea',maxLength:1000},
 ] as const

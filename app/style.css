@@ -49,3 +49,5 @@ select,textarea{font:inherit;border:1px solid #cfd8e1;border-radius:7px;padding:
 .sort-heading:hover{color:#15568e}
 .sort-heading span{font-size:14px}
 @media(max-width:700px){.shell>header{flex-wrap:wrap}.head-actions{justify-content:flex-start}}
+label{text-transform:capitalize}
+label input,label select,label textarea,label button{text-transform:none}
