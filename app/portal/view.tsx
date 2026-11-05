@@ -7,6 +7,7 @@ import ProfileEditor from './profile-editor'
 import {fieldKey,payrollFields,payrollPeriodLabel} from '../employees/field-config'
 import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
+import {formatMoneyField} from '../../lib/money'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
 const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','My Payslip']] as const
@@ -14,7 +15,7 @@ type Tab=typeof tabs[number][0]
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
 function FieldList({fields,values}:{fields:readonly (readonly [string,string])[];values:Values}){
- return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(values[key])}</dd></div>)}</dl>
+ return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(formatMoneyField(key,values[key]))}</dd></div>)}</dl>
 }
 
 export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false}:{isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
@@ -104,6 +105,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
     ...profile.payroll_sep_2026, employee_id:employee.employee_no, full_name:employee.full_name,
     designation:employee.designation, date_of_joining:profile.employment.date_of_joining,
    }}/>
+   <FieldList fields={[[ 'medical_hospitalisation_limit_person_year_pkr', 'Medical Hospitalisation Limit / Person / Year (PKR)' ]]} values={profile.rewards}/>
   </section>:null}
 
   {isManager?<section className="panel"><h2>My team</h2>{teamUnavailable?<p role="alert">Your team could not be loaded. Please try again later.</p>:team.length===0?<p>No verified direct reports have been linked yet.</p>:<ul className="team-list">{team.map(member=><li key={member.employee_no}><strong>{member.full_name}</strong><span>{member.employee_no} · {display(member.designation)}</span></li>)}</ul>}</section>:null}

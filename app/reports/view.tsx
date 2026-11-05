@@ -3,6 +3,7 @@ import {useTableSort} from '../sortable-table'
 import {useMemo,useState} from 'react'
 import type {ReportTable} from '../../lib/admin-reports'
 import {reportCsv} from '../../lib/admin-reports'
+import {formatMoneyField} from '../../lib/money'
 export default function Reports({data,generatedAt}:{data:{full:ReportTable;payroll:ReportTable};generatedAt:string}){
  const [kind,setKind]=useState<'full'|'payroll'>('full'),[search,setSearch]=useState(''),[department,setDepartment]=useState(''),[page,setPage]=useState(0)
  const table=data[kind],departments=useMemo(()=>[...new Set(data.full.rows.map(r=>r.Department).filter(Boolean))].sort(),[data])
@@ -17,7 +18,7 @@ export default function Reports({data,generatedAt}:{data:{full:ReportTable;payro
  {kind==='payroll'&&<p className="notice">Transfer and bank details are shown only where explicitly recorded. “Not recorded” means no value is stored. HR can enter these in Employee Directory → Edit → Salary Slip.</p>}
  <div className="bar"><label>Search report<input value={search} onChange={e=>{setSearch(e.target.value);setPage(0)}} placeholder="Name, employee ID, CNIC or any value"/></label><label>Department<select value={department} onChange={e=>{setDepartment(e.target.value);setPage(0)}}><option value="">All departments</option>{departments.map(d=><option key={d}>{d}</option>)}</select></label><button onClick={download} disabled={!filtered.length}>Download CSV ({filtered.length} rows)</button><button className="secondary" onClick={()=>window.location.reload()}>Refresh data</button></div>
  <p className="muted" role="status">{filtered.length} of {table.rows.length} employees · {table.columns.length} columns · CSV includes all matching rows</p>
- <div className="tablewrap report-table" tabIndex={0} aria-label="Scrollable employee report"><table><caption className="report-caption">{kind==='full'?'Employee Profiles':'Payroll & Salary'}</caption><thead><tr>{table.columns.map(c=>reportSort.heading(c,c,()=>setPage(0)))}</tr></thead><tbody>{visible.map((r,i)=><tr key={r['Employee ID']||i}>{table.columns.map(c=><td key={c}>{r[c]!==undefined&&r[c]!==''?r[c]:<span className="muted">Not recorded</span>}</td>)}</tr>)}</tbody></table></div>
+ <div className="tablewrap report-table" tabIndex={0} aria-label="Scrollable employee report"><table><caption className="report-caption">{kind==='full'?'Employee Profiles':'Payroll & Salary'}</caption><thead><tr>{table.columns.map(c=>reportSort.heading(c,c,()=>setPage(0)))}</tr></thead><tbody>{visible.map((r,i)=><tr key={r['Employee ID']||i}>{table.columns.map(c=><td key={c}>{r[c]!==undefined&&r[c]!==''?formatMoneyField(c,r[c]):<span className="muted">Not recorded</span>}</td>)}</tr>)}</tbody></table></div>
  {!filtered.length&&<p>No employees match these filters.</p>}<div className="bar report-pager"><button className="secondary" disabled={current===0} onClick={()=>setPage(current-1)}>Previous</button><span>Page {current+1} of {lastPage+1}</span><button className="secondary" disabled={current>=lastPage} onClick={()=>setPage(current+1)}>Next</button></div>
  </section></main>
 }

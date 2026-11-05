@@ -31,3 +31,9 @@ test('source whitespace does not mark an untouched form as edited',()=>{
  const original={personal_email:' person@example.org '}
  assert.deepEqual(contactPatch(original,contactDraft(original)),{})
 })
+
+test('employee profile patches cannot change monetary benefits or payroll',()=>{
+ const profile={employee:{},personal:{},employment:{},rewards:{medical_hospitalisation_limit_person_year_pkr:'450000'}}
+ const draft={...exported.profileDraft(profile),medical_hospitalisation_limit_person_year_pkr:'999999',payable_salary_rs:'999999'}
+ assert.deepEqual(exported.profilePatch(profile,draft),{})
+})

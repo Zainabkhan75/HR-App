@@ -35,7 +35,7 @@ export const editableProfileSections=[
  {title:'Personal Information',fields:[['cnic_passport','CNIC / Passport'],['email','Work Email'],...backgroundSections[0].fields]},
  ...backgroundSections.slice(1),
  {title:'Employment Information',fields:employmentFields},
- {title:'Salary & Benefits',fields:rewardFields},
+ {title:'Salary & Benefits',fields:rewardFields.filter(([key])=>key!=='medical_hospitalisation_limit_person_year_pkr')},
  {title:'Salary Transfer & Bank Details',fields:[['salary_transfer_method','Salary Transfer Method'],['bank_name','Bank Name'],['bank_branch','Bank Branch'],['bank_account_title','Bank Account Title'],['bank_account_number','Bank Account Number'],['iban','IBAN']]},
 ] as const
 export const profileDraft=(profile:EmployeeProfile):Record<string,string>=>{
