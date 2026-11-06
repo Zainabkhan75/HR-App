@@ -6,6 +6,7 @@ import {editableProfileSections,profileDraft,profilePatch} from '../../lib/ess-p
 import type {EmployeeProfile} from '../../lib/ess-profile'
 import {reportingTitle,isDropdown,employmentChoice,validJoiningDate,validProbation,selectChoices} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
+const qualificationLevels=['Matric','Intermediate','Diploma','Bachelor’s','Master’s','Other'] as const
 export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChange,onBusyChange}:{active:boolean;initialProfile:EmployeeProfile;onSaved:(value:EmployeeProfile)=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
  const [base,setBase]=useState(initialProfile),[draft,setDraft]=useState(()=>profileDraft(initialProfile))
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[conflict,setConflict]=useState(false)
@@ -65,7 +66,10 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   <form onSubmit={save}>
    {editableProfileSections.map(section=><div key={section.title}><h3>{section.title}</h3><div className="family-fields">{section.fields.map(([key,label])=><label key={key} className={key==="permanent_address"?"field-label-exact":undefined}>
     {key==='probation'?'Probation (months)':label}
-    {isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value}))}>
+    {key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
+     <option value="">Select a qualification level</option>
+     {selectChoices(qualificationLevels,draft[key]).map(level=><option key={level} value={level}>{level}</option>)}
+    </select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value}))}>
      <option value="">{options?'Select an option':'Loading options...'}</option>
      {selectChoices(options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{key==='reports_to_text'?reportingTitle(option):option}</option>)}
     </select>:key==='probation'?<>

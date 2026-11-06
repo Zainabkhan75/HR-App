@@ -19,7 +19,7 @@ export const backgroundSections=[
  {title:'Personal information',fields:[['date_of_birth','Date of birth (as submitted)'],['permanent_address','Permanent Address (as per ID card)']]},
  {title:'Emergency contact',fields:[['emergency_contact_full_name','Full name'],['emergency_contact_relationship','Relationship'],['primary_emergency_contact_number','Primary number'],['alternative_emergency_number','Alternative number']]},
  {title:'Previous employment',fields:[['previous_employer_company_name','Employer / company'],['previous_designation','Designation'],['previous_employment_start','From (as submitted)'],['previous_employment_end','To (as submitted)']]},
- {title:'Education',fields:[['latest_education','Qualification and institution'],['education_start','From (as submitted)'],['education_end','To (as submitted)']]},
+ {title:'Education',fields:[['highest_qualification_level','Highest Qualification Level'],['latest_education','Qualification and institution'],['education_start','From (as submitted)'],['education_end','To (as submitted)']]},
 ] as const
 export const rewardFields=[
  ['medical_hospitalisation_limit_person_year_pkr','Medical hospitalisation limit / person / year (PKR)'],
