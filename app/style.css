@@ -55,4 +55,4 @@ label input,label select,label textarea,label button{text-transform:none}
 .work-sidebar nav button,.work-sidebar nav a,.head-actions>a{text-transform:capitalize}
 .field-label-exact{text-transform:none}
 
-.create-login:disabled[title]{color:#64748b;opacity:1;cursor:not-allowed}
+.inactive-disabled:disabled[title]{color:#64748b;opacity:1;cursor:not-allowed}
