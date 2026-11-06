@@ -1,0 +1,1 @@
+drop trigger if exists details_require_approved_previous_designation on public.employee_details;
