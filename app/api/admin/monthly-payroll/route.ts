@@ -17,9 +17,8 @@ export async function POST(request:Request){
   const bytes=Buffer.from(await file.arrayBuffer())
   const {rows,changes,approvedNew,aliases}=await readPayrollCycle(bytes,month)
   const admin=serviceDb()
-  const {data:published,error:periodError}=await admin.from('monthly_payroll').select('payroll_month').eq('payroll_month',month+'-01').limit(1)
+  const {data:published,error:periodError}=await admin.from('monthly_payroll').select('employee_id,fields').eq('payroll_month',month+'-01').limit(2001)
   if(periodError)throw Error('Monthly payroll storage is unavailable.')
-  if(published.length)return json({error:'This payroll month is already published.'},409)
   const roster=new Map<string,{id:string;full_name:string;updated_at:string;employment_state:string;leaving_date:string|null}>()
   for(let offset=0;;offset+=500){
    const {data,error}=await ctx.db.from('employees').select('id,employee_no,full_name,updated_at,employment_state,leaving_date').order('employee_no').range(offset,offset+499)
@@ -75,10 +74,17 @@ export async function POST(request:Request){
    return employee?[{reference,id:employee.id,updated_at:employee.updated_at}]:[]
   })
   const creates=[...newEmployees].map(([reference,employee])=>({reference,...employee}))
+  if(published.length){
+   const normalize=(fields:Record<string,string>)=>JSON.stringify(Object.entries(fields).filter(([key])=>key!=='new_card').sort(([a],[b])=>a.localeCompare(b)))
+   const existing=new Map(published.map(row=>[row.employee_id,normalize(row.fields)]))
+   if(payroll.length!==published.length||payroll.some(row=>existing.get(roster.get(row.reference)?.id??'')!==normalize(row.fields))){
+    return json({error:'This month is already published and the workbook pay figures differ. Use the workbook that matches the published payroll to apply Review decisions.'},409)
+   }
+  }
   const hash=createHash('sha256').update('payroll-cycle:'+ctx.user.id+':'+month+':').update(bytes).update(JSON.stringify(employees)).digest('hex')
   if(action==='preview'){
    return json({month,token:signPreview({hash,expires:Date.now()+30*60*1000,timestamps:[]}),netCents:rows.reduce((sum,row)=>sum+row.netCents,0),
-    changes:resolved,creates,
+    changes:resolved,creates,alreadyPublished:published.length>0,
     rows:payroll.map(row=>({employeeNo:row.reference,name:roster.get(row.reference)?.full_name??row.sourceName,sourceName:row.sourceName,netCents:row.netCents}))})
   }
   verifyPreview(String(form.get('token')??''),hash)
