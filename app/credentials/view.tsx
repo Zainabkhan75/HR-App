@@ -2,13 +2,14 @@
 import {useTableSort} from '../sortable-table'
 import {useEffect,useMemo,useState} from 'react'
 
-type Row={employeeId:string;name:string;username:string;linked:boolean}
+type Row={employeeId:string;name:string;username:string;linked:boolean;designation:string|null;employmentStatus:'active'|'inactive'}
 type Generated={employeeId:string;name:string;username:string;password:string}
 export default function Credentials(){
  const [rows,setRows]=useState<Row[]>([]),[generated,setGenerated]=useState<Record<string,string>>({}),[selected,setSelected]=useState<string[]>([]),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
+ const [status,setStatus]=useState<'all'|Row['employmentStatus']>('all')
  useEffect(()=>{fetch('/api/admin/credentials',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Could not load employee accounts');return r.json()}).then(d=>setRows(d.rows)).catch(e=>setError(e.message))},[])
  const credentialsSort=useTableSort()
- const shown=useMemo(()=>rows.filter(r=>(r.employeeId+' '+r.name+' '+r.username).toLowerCase().includes(search.toLowerCase().trim())),[rows,search])
+ const shown=useMemo(()=>rows.filter(r=>(status==='all'||r.employmentStatus===status)&&(r.employeeId+' '+r.name+' '+r.username).toLowerCase().includes(search.toLowerCase().trim())),[rows,search,status])
  function toggle(id:string){setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id])}
  async function generate(){
   if(!selected.length)return
@@ -26,16 +27,16 @@ export default function Credentials(){
  }
  function download(){
   const quote=(s:string)=>'"'+s.replaceAll('"','""')+'"'
-  const values=[['Employee ID','Name','Username','Password'],...rows.map(r=>[r.employeeId,r.name,r.username,generated[r.employeeId]??''])]
+  const values=[['Employee ID','Name','Designation','Employment Status','Username','Password'],...rows.map(r=>[r.employeeId,r.name,r.designation??'',r.employmentStatus,r.username,generated[r.employeeId]??''])]
   const csv='\uFEFF'+values.map(row=>row.map(v=>quote(/^[\s]*[=+@\-\t\r]/.test(v)?"'"+v:v)).join(',')).join('\r\n')
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}))
   const anchor=document.createElement('a');anchor.href=url;anchor.download=`Bandana_Employee_Credentials_${new Date().toISOString().slice(0,10)}.csv`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
  }
  return <main className="shell"><header><div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Employee credentials</h1><p>Linked usernames and newly generated temporary passwords</p></div><nav className="head-actions"><a href="/employees">Employee directory</a><a href="/reports">Reports</a></nav></header>
  <section className="panel"><p className="notice">Existing passwords cannot be displayed. Generating a temporary password replaces that employee’s current password and requires them to change it at next sign-in. Passwords appear only in this session.</p>
- <div className="bar"><label>Find employee<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, name or username"/></label><button className="secondary" disabled={busy||!shown.some(r=>r.linked)} onClick={()=>setSelected(shown.filter(r=>r.linked).map(r=>r.employeeId))}>Select all linked shown</button><button disabled={busy||!selected.length} onClick={generate}>Generate for selected ({selected.length})</button><button className="secondary" onClick={download}>Download table CSV</button></div>
+ <div className="bar"><label>Find employee<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, name or username"/></label><label>Employment Status<select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value as typeof status);setSelected([])}}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><button className="secondary" disabled={busy||!shown.some(r=>r.linked)} onClick={()=>setSelected(shown.filter(r=>r.linked).map(r=>r.employeeId))}>Select all linked shown</button><button disabled={busy||!selected.length} onClick={generate}>Generate for selected ({selected.length})</button><button className="secondary" onClick={download}>Download table CSV</button></div>
  {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
- <p className="muted">{rows.length} employees · {rows.filter(r=>r.linked).length} active linked accounts · {Object.keys(generated).length} passwords shown</p>
- <div className="tablewrap report-table" tabIndex={0}><table><thead><tr><th scope="col">Select</th>{credentialsSort.heading('employeeId','Emp ID')}{credentialsSort.heading('name','Name')}{credentialsSort.heading('username','Username')}{credentialsSort.heading('password','Password')}</tr></thead><tbody>{credentialsSort.sortRows(shown,(row,column)=>column==='password'?generated[row.employeeId]:row[column as 'employeeId'|'name'|'username']).map(r=><tr key={r.employeeId}><td><input aria-label={`Select ${r.name}`} type="checkbox" disabled={!r.linked||busy} checked={selected.includes(r.employeeId)} onChange={()=>toggle(r.employeeId)}/></td><td>{r.employeeId}</td><td>{r.name}</td><td>{r.username||<span className="muted">No linked account</span>}</td><td className="mono">{generated[r.employeeId]??<span className="muted">Not available</span>}</td></tr>)}</tbody></table></div>
+ <p className="muted">Showing {shown.length} of {rows.length} employees · {rows.filter(r=>r.linked).length} active linked accounts · {Object.keys(generated).length} passwords shown</p>
+ <div className="tablewrap report-table" tabIndex={0}><table><thead><tr><th scope="col">Select</th>{credentialsSort.heading('employeeId','Emp ID')}{credentialsSort.heading('name','Name')}{credentialsSort.heading('designation','Designation')}{credentialsSort.heading('employmentStatus','Status')}{credentialsSort.heading('username','Username')}{credentialsSort.heading('password','Password')}</tr></thead><tbody>{credentialsSort.sortRows(shown,(row,column)=>column==='password'?generated[row.employeeId]:row[column as 'employeeId'|'name'|'username'|'designation'|'employmentStatus']).map(r=><tr key={r.employeeId}><td><input aria-label={`Select ${r.name}`} type="checkbox" disabled={!r.linked||busy} checked={selected.includes(r.employeeId)} onChange={()=>toggle(r.employeeId)}/></td><td>{r.employeeId}</td><td>{r.name}</td><td>{r.designation??'—'}</td><td><span className={'status '+r.employmentStatus}>{r.employmentStatus}</span></td><td>{r.username||<span className="muted">No linked account</span>}</td><td className="mono">{generated[r.employeeId]??<span className="muted">Not available</span>}</td></tr>)}</tbody></table></div>
  </section></main>
 }

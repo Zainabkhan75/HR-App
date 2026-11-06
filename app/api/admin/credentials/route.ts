@@ -5,7 +5,7 @@ import {sameOriginRequest} from '../../../../lib/signin-server'
 
 export const dynamic='force-dynamic'
 const headers={'Cache-Control':'private, no-store','Vary':'Cookie'}
-type Employee={id:string;employee_no:string;full_name:string}
+type Employee={id:string;employee_no:string;full_name:string;designation:string|null;employment_state:'active'|'inactive'}
 type Account={employee_id:string;user_id:string;login_email:string;is_active:boolean}
 
 async function context(){
@@ -18,10 +18,10 @@ async function context(){
 }
 function response(body:object,status=200){return NextResponse.json(body,{status,headers})}
 async function readRegister(db:Awaited<ReturnType<typeof serverSupabase>>){
- const [employees,accounts]=await Promise.all([db.from('employees').select('id,employee_no,full_name').order('employee_no'),db.from('employee_accounts').select('employee_id,user_id,login_email,is_active')])
+ const [employees,accounts]=await Promise.all([db.from('employees').select('id,employee_no,full_name,designation,employment_state').order('employee_no'),db.from('employee_accounts').select('employee_id,user_id,login_email,is_active')])
  if(employees.error||accounts.error)throw Error('Register unavailable')
  const links=new Map((accounts.data as Account[]).map(a=>[a.employee_id,a]))
- return (employees.data as Employee[]).map(e=>({employeeId:e.employee_no,name:e.full_name,username:links.get(e.id)?.login_email??'',linked:!!links.get(e.id)?.is_active}))
+ return (employees.data as Employee[]).map(e=>({employeeId:e.employee_no,name:e.full_name,designation:e.designation,employmentStatus:e.employment_state,username:links.get(e.id)?.login_email??'',linked:!!links.get(e.id)?.is_active}))
 }
 export async function GET(){
  const ctx=await context()
