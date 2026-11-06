@@ -11,9 +11,9 @@ export const contactFields=[
  {key:'personal_address',label:'Current Address',type:'textarea',maxLength:1000},
 ] as const
 export const employmentFields=[
- ['employment_type','Employment type'],['date_of_joining','Recorded Date of Joining'],
+ ['employment_type','Employment type'],
  ['work_location_mobility','Work location / mobility'],['probation','Probation'],
- ['offer_date','Date of Confirmation'],['acceptance_joining_confirmation_due','Date of Joining'],
+ ['offer_date','Date of Confirmation'],['date_of_joining','Date of Joining'],
 ] as const
 export const backgroundSections=[
  {title:'Personal information',fields:[['date_of_birth','Date of birth (as submitted)'],['permanent_address','Permanent Address (as per ID card)']]},
