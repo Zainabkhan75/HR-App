@@ -4,12 +4,13 @@ import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import {memberDraft,memberValue,memberError,familySnapshot} from '../../lib/family-profile'
 import type {FamilyDetails,MemberDraft} from '../../lib/family-profile'
+import DateInput from '../date-input'
 
 function PersonFields({person,onChange,disabled,isSpouse=false}:{isSpouse?:boolean;person:MemberDraft;onChange:(value:MemberDraft)=>void;disabled:boolean}){
  const adult=isSpouse||(person.age.trim()!==''&&Number(person.age)>=18)
  return <div className="family-fields">
   <label>Full name<input required maxLength={200} value={person.full_name} disabled={disabled} onChange={e=>onChange({...person,full_name:e.target.value})}/></label>
-  <label>Date of birth<input type="date" value={person.date_of_birth} disabled={disabled} onChange={e=>onChange({...person,date_of_birth:e.target.value})}/></label>
+  <label>Date of birth<DateInput birthDate value={person.date_of_birth} disabled={disabled} onChange={value=>onChange({...person,date_of_birth:value})}/></label>
   <label>Age (years)<input type="number" required min={0} step={1} value={person.age} disabled={disabled} onChange={e=>onChange({...person,age:e.target.value})}/></label>
   <label>CNIC {adult?'(required)':'(optional)'}<input required={adult} inputMode="numeric" maxLength={32} placeholder="13 digits, with or without hyphens" value={person.cnic} disabled={disabled} onChange={e=>onChange({...person,cnic:e.target.value})}/></label>
   <label className="family-wide">Pre-existing conditions<textarea rows={3} maxLength={4000} placeholder="Enter None if none, or describe any conditions" value={person.pre_existing_conditions} disabled={disabled} onChange={e=>onChange({...person,pre_existing_conditions:e.target.value})}/></label>

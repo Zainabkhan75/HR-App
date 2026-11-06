@@ -2,6 +2,7 @@
 import {useEffect,useState} from 'react'
 import {browserDb} from '../../lib/supabase'
 import {formatMoneyField} from '../../lib/money'
+import {displayShortDate,isProfileDateField} from '../../lib/date-input'
 import type {Values} from '../../lib/ess-profile'
 import {fieldKey,payrollFields} from '../employees/field-config'
 
@@ -46,7 +47,8 @@ export default function Payslip({legacy,identity}:{legacy:Values;identity:Values
   {month&&!values&&!error&&<p role="status">Loading payslip…</p>}
   {values&&<dl className="profile-grid">{payrollFields.map(field=>{
    const key=fieldKey(field)
-   return <div className="ess-field" key={key}><dt>{field}</dt><dd>{formatMoneyField(key,key in identity?identity[key]:values[key])?.trim()||'Not recorded'}</dd></div>
+   const value=key in identity?identity[key]:values[key]
+   return <div className="ess-field" key={key}><dt>{field}</dt><dd>{(isProfileDateField(key)?displayShortDate(value):formatMoneyField(key,value)).trim()||'Not recorded'}</dd></div>
   })}</dl>}
  </section>
 }

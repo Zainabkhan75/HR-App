@@ -3,8 +3,10 @@ import {useEffect,useState} from 'react'
 import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import {editableProfileSections,profileDraft,profilePatch} from '../../lib/ess-profile'
+import DateInput from '../date-input'
+import {isIsoDate,isProfileDateField} from '../../lib/date-input'
 import type {EmployeeProfile} from '../../lib/ess-profile'
-import {isDropdown,employmentChoice,validJoiningDate,validProbation,selectChoices} from '../../lib/profile-inputs'
+import {isDropdown,employmentChoice,validProbation,selectChoices} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 const qualificationLevels=['Matric','Intermediate','Diploma','Bachelor’s','Master’s','Other'] as const
 export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChange,onBusyChange}:{active:boolean;initialProfile:EmployeeProfile;onSaved:(value:EmployeeProfile)=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
@@ -46,8 +48,8 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
      ((draft.reports_to_text&&!selectedManager)||(!draft.reports_to_text&&draft.line_manager_employee_no))){
    setError('Choose a line manager with the selected designation.');return
   }
-  if(patch.date_of_joining!==undefined&&!validJoiningDate(patch.date_of_joining)){
-   setError('Use a valid joining date in DD/MM/YYYY format, for example 27/10/2026.');return
+  if(Object.entries(patch).some(([key,value])=>isProfileDateField(key)&&value&&!isIsoDate(value))){
+   setError('Enter a valid date in DD/MM/YY format, for example 27/10/26.');return
   }
   if(patch.probation!==undefined&&!validProbation(patch.probation)){
    setError('Probation must be a whole number from 0 to 6 months.');return
@@ -57,7 +59,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
    const {data,error:saveError}=await browserDb().rpc('update_my_employee_profile',{p_patch:patch,p_expected_core_updated_at:base.core_updated_at,p_expected_profile_updated_at:base.profile_updated_at})
    if(saveError||!data){
     setConflict(saveError?.code==='40001'||!data)
-    setError(saveError?.code==='40001'?'Your profile changed elsewhere. Reload before saving.':saveError?.code==='22023'?'Check the dropdown selections, date format (DD/MM/YYYY), probation (0–6 months), name and work email.':'Could not confirm the save. Reload before trying again.')
+    setError(saveError?.code==='40001'?'Your profile changed elsewhere. Reload before saving.':saveError?.code==='22023'?'Check the dropdown selections, dates (DD/MM/YY), probation (0–6 months), name and work email.':'Could not confirm the save. Reload before trying again.')
     return
    }
    populate(data as EmployeeProfile);setNotice('Profile details saved.')
@@ -95,8 +97,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
     </select>:key==='probation'?<>
      <input type="number" min={0} max={6} step={1} inputMode="numeric" value={validProbation(draft.probation)?draft.probation:''} readOnly={draft.employment_type==='Permanent'} disabled={busy} placeholder="0 to 6" aria-describedby="probation-help" onChange={event=>setDraft(old=>({...old,probation:event.target.value}))}/>
      <span id="probation-help" className="field-hint">{draft.employment_type==='Permanent'?'Permanent: 3 months.':!validProbation(draft.probation)?'Current recorded text: '+draft.probation+'. Enter 0–6 months to replace it.':'Enter a whole number from 0 to 6 months.'}</span>
-    </>:<input type={key==='email'?'email':key==='leaving_date'?'date':'text'} required={key==='full_name'} maxLength={key==='email'?254:1000} value={draft[key]} disabled={busy} placeholder={key==='date_of_joining'?'DD/MM/YYYY (e.g. 27/10/2026)':undefined} aria-describedby={key==='date_of_joining'?'joining-date-help':undefined} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}/>}
-    {key==='date_of_joining'?<span id="joining-date-help" className="field-hint">DD/MM/YYYY — for example, 27/10/2026.</span>:null}
+    </>:isProfileDateField(key)?<DateInput birthDate={key==='date_of_birth'} value={draft[key]} disabled={busy} onChange={value=>setDraft(old=>({...old,[key]:value}))}/>:<input type={key==='email'?'email':'text'} required={key==='full_name'} maxLength={key==='email'?254:1000} value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}/>}
    </label>)}</div></div>)}
    <p className="muted">Changing the work email does not change your sign-in email. Editing reporting-line text does not change manager permissions or team access.</p>
    <div className="ess-form-actions"><button type="submit" disabled={busy||!dirty||conflict}>{busy?'Saving...':'Save profile details'}</button><button type="button" className="secondary" disabled={busy||!dirty} onClick={()=>{setDraft(profileDraft(base));setError('');setNotice('Unsaved profile edits cleared.')}}>Cancel changes</button></div>
