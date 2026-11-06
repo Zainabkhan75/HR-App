@@ -16,7 +16,7 @@ function PersonFields({person,onChange,disabled,isSpouse=false}:{isSpouse?:boole
   <label className="family-wide">Pre-existing conditions<textarea rows={3} maxLength={4000} placeholder="Enter None if none, or describe any conditions" value={person.pre_existing_conditions} disabled={disabled} onChange={e=>onChange({...person,pre_existing_conditions:e.target.value})}/></label>
  </div>
 }
-export default function FamilyEditor({active,onDirtyChange,onBusyChange}:{active:boolean;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
+export default function FamilyEditor({active,employeeId,onDirtyChange,onBusyChange}:{active:boolean;employeeId?:string;onDirtyChange?:(value:boolean)=>void;onBusyChange?:(value:boolean)=>void}){
  const [base,setBase]=useState<FamilyDetails|null>(null)
  const [spouse,setSpouse]=useState<MemberDraft|null>(null)
  const [children,setChildren]=useState<MemberDraft[]>([])
@@ -29,15 +29,18 @@ export default function FamilyEditor({active,onDirtyChange,onBusyChange}:{active
  async function load(){
   setLoading(true);setError('');setNotice('')
   try{
-   const {data,error:loadError}=await browserDb().rpc('my_family_details')
-   if(loadError||!data){setError('Could not load family details. Please try again.');return}
-   populate(data as FamilyDetails)
+   const db=browserDb()
+   const {data,error:loadError}=employeeId
+    ?await db.from('employee_family_details').select('spouse,children,updated_at').eq('employee_id',employeeId).maybeSingle()
+    :await db.rpc('my_family_details')
+   if(loadError||(!employeeId&&!data)){setError('Could not load family details. Please try again.');return}
+   populate((data as FamilyDetails|null)??{spouse:null,children:[],updated_at:null})
   }catch{setError('Could not load family details. Please check your connection.')}
   finally{setLoading(false)}
  }
  useEffect(()=>{if(active&&!base&&!loading)void load()},[active])
- useEffect(()=>{onDirtyChange(dirty)},[dirty,onDirtyChange])
- useEffect(()=>{onBusyChange(busy||loading)},[busy,loading,onBusyChange])
+ useEffect(()=>{onDirtyChange?.(dirty)},[dirty,onDirtyChange])
+ useEffect(()=>{onBusyChange?.(busy||loading)},[busy,loading,onBusyChange])
 
  async function save(event:FormEvent<HTMLFormElement>){
   event.preventDefault()
@@ -49,19 +52,23 @@ export default function FamilyEditor({active,onDirtyChange,onBusyChange}:{active
   }
   setBusy(true)
   try{
-   const {data,error:saveError}=await browserDb().rpc('save_my_family_details',{p_spouse:draft.spouse,p_children:draft.children,p_expected_updated_at:base.updated_at})
+   const db=browserDb()
+   const payload={p_spouse:draft.spouse,p_children:draft.children,p_expected_updated_at:base.updated_at}
+   const {data,error:saveError}=employeeId
+    ?await db.rpc('save_employee_family_details',{...payload,p_employee_id:employeeId})
+    :await db.rpc('save_my_family_details',payload)
    if(saveError||!data){
     setConflict(saveError?.code==='40001'||!data)
     setError(saveError?.code==='40001'?'Family details changed elsewhere. Reload before saving.':saveError?.code==='22023'?'Check each dependant’s name, date of birth, age and CNIC. CNIC is required for every spouse and children aged 18 or older.':'Could not confirm the save. Reload before trying again.')
     return
    }
-   populate(data as FamilyDetails);setNotice('Family and dependant details saved.')
+   populate((data as FamilyDetails|null)??{spouse:null,children:[],updated_at:null});setNotice('Family and dependant details saved.')
   }catch{setError('Could not confirm the save. Check your connection and reload before trying again.');setConflict(true)}
   finally{setBusy(false)}
  }
  return <section className="panel" hidden={!active}>
   <h2>Family & dependants</h2><p>Details for health insurance. You may record one spouse and add children individually.</p>
-  <p className="muted">CNIC is required for every spouse and children aged 18 or older. It is optional for children under 18. These details are visible only to you and HR.</p>
+  <p className="muted">CNIC is required for every spouse and children aged 18 or older. It is optional for children under 18. {employeeId?'These details are visible to the employee and HR.':'These details are visible only to you and HR.'}</p>
   {loading?<p role="status">Loading family details...</p>:null}
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}

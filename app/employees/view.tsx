@@ -1,6 +1,6 @@
 'use client'
 import DateInput from '../date-input'
-import FamilyView from './family-view'
+import FamilyEditor from '../portal/family-editor'
 import DesignationSelect from '../designation-select'
 import {employmentChoice,isDropdown,qualificationLevels,selectChoices} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
@@ -82,7 +82,8 @@ export default function Directory({email}:{email:string}) {
   {designationFeedback&&<p role="status">{designationFeedback}</p>}
  </div>}
  <div className="tabs">{[{key:'core',title:'Core record'},...(selected?[{key:'family',title:'Family & Dependants'}]:[]),...sections].map(s=><button key={s.key} className={tab===s.key?'tab active-tab':'tab'} type="button" onClick={()=>setTab(s.key)}>{s.title}</button>)}</div>
- {tab==='family'&&selected?<FamilyView key={selected.id} employeeId={selected.id}/>:<form onSubmit={save}>{tab==='salary'&&<>
+ {selected&&<FamilyEditor key={selected.id} employeeId={selected.id} active={tab==='family'}/>}
+ {tab!=='family'&&<form onSubmit={save}>{tab==='salary'&&<>
  <h3>Salary Slip · {payrollPeriodLabel}</h3>
  <fieldset>
  <legend>Payroll Details</legend>
