@@ -2,6 +2,7 @@ import {NextResponse} from 'next/server'
 import {createClient} from '@supabase/supabase-js'
 import {serverSupabase} from '../../../../lib/server'
 import {sameOriginRequest} from '../../../../lib/signin-server'
+import {emailRecipients} from '../../../../lib/employee-emails'
 
 export const dynamic='force-dynamic'
 const headers={'Cache-Control':'private, no-store','Vary':'Cookie'}
@@ -18,10 +19,16 @@ async function context(){
 }
 function response(body:object,status=200){return NextResponse.json(body,{status,headers})}
 async function readRegister(db:Awaited<ReturnType<typeof serverSupabase>>){
- const [employees,accounts]=await Promise.all([db.from('employees').select('id,employee_no,full_name,designation,employment_state').order('employee_no'),db.from('employee_accounts').select('employee_id,user_id,login_email,is_active')])
- if(employees.error||accounts.error)throw Error('Register unavailable')
+ const [employees,accounts,details]=await Promise.all([db.from('employees').select('id,employee_no,full_name,designation,employment_state').order('employee_no'),db.from('employee_accounts').select('employee_id,user_id,login_email,is_active'),db.from('employee_details').select('employee_id,work_email:profile->>email,personal_email:profile->>personal_email').limit(2000)])
+ if(employees.error||accounts.error||details.error)throw Error('Register unavailable')
  const links=new Map((accounts.data as Account[]).map(a=>[a.employee_id,a]))
- return (employees.data as Employee[]).map(e=>({employeeId:e.employee_no,name:e.full_name,designation:e.designation,employmentStatus:e.employment_state,username:links.get(e.id)?.login_email??'',linked:!!links.get(e.id)?.is_active}))
+ const roster=employees.data as Employee[]
+ const recipients=emailRecipients(
+  roster.map(e=>({...e,department:null})),
+  details.data.map(d=>({employee_id:d.employee_id,profile:{email:d.work_email,personal_email:d.personal_email}}))
+ )
+ const emailStatuses=new Map(recipients.map(r=>[r.id,r.source||r.reason]))
+ return roster.map(e=>({emailStatus:emailStatuses.get(e.id)??'',employeeId:e.employee_no,name:e.full_name,designation:e.designation,employmentStatus:e.employment_state,username:links.get(e.id)?.login_email??'',linked:!!links.get(e.id)?.is_active}))
 }
 export async function GET(){
  const ctx=await context()
