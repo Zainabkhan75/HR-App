@@ -1,6 +1,7 @@
 export const dropdownKeys=['department','location','reports_to_text','employment_type','work_location_mobility'] as const
 export type DropdownKey=typeof dropdownKeys[number]
-export type ProfileOptions=Record<DropdownKey,string[]>
+export type LineManagerOption={designation:string;employee_no:string;name:string;location:string|null}
+export type ProfileOptions=Record<DropdownKey,string[]>&{line_managers?:LineManagerOption[]}
 export const isDropdown=(key:string):key is DropdownKey=>dropdownKeys.some(value=>value===key)
 export function employmentChoice(draft:Record<string,string>,value:string):Record<string,string>{
  return {...draft,employment_type:value,probation:value==='Permanent'?'3':draft.employment_type==='Permanent'?'':draft.probation}

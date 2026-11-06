@@ -4,7 +4,7 @@ import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import {editableProfileSections,profileDraft,profilePatch} from '../../lib/ess-profile'
 import type {EmployeeProfile} from '../../lib/ess-profile'
-import {reportingTitle,isDropdown,employmentChoice,validJoiningDate,validProbation,selectChoices} from '../../lib/profile-inputs'
+import {isDropdown,employmentChoice,validJoiningDate,validProbation,selectChoices} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 const qualificationLevels=['Matric','Intermediate','Diploma','Bachelor’s','Master’s','Other'] as const
 export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChange,onBusyChange}:{active:boolean;initialProfile:EmployeeProfile;onSaved:(value:EmployeeProfile)=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
@@ -22,6 +22,9 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
  }
  useEffect(()=>{void loadOptions()},[])
  const patch=profilePatch(base,draft),dirty=Object.keys(patch).length>0
+ const reportingTitles=options?.line_managers?options.reports_to_text:[]
+ const managers=(options?.line_managers??[]).filter(manager=>manager.designation===draft.reports_to_text)
+ const selectedManager=managers.some(manager=>manager.employee_no===draft.line_manager_employee_no)
  useEffect(()=>{if(!dirty){setBase(initialProfile);setDraft(profileDraft(initialProfile))}},[initialProfile,dirty])
  useEffect(()=>{onDirtyChange(dirty)},[dirty,onDirtyChange])
  useEffect(()=>{onBusyChange(busy)},[busy,onBusyChange])
@@ -39,6 +42,10 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   event.preventDefault()
   if(busy||!dirty||conflict)return
   setError('');setNotice('')
+  if((patch.reports_to_text!==undefined||patch.line_manager_employee_no!==undefined)&&
+     ((draft.reports_to_text&&!selectedManager)||(!draft.reports_to_text&&draft.line_manager_employee_no))){
+   setError('Choose a line manager with the selected designation.');return
+  }
   if(patch.date_of_joining!==undefined&&!validJoiningDate(patch.date_of_joining)){
    setError('Use a valid joining date in DD/MM/YYYY format, for example 27/10/2026.');return
   }
@@ -66,12 +73,25 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   <form onSubmit={save}>
    {editableProfileSections.map(section=><div key={section.title}><h3>{section.title}</h3><div className="family-fields">{section.fields.map(([key,label])=><label key={key} className={key==="permanent_address"?"field-label-exact":undefined}>
     {key==='probation'?'Probation (months)':label}
-    {key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
+    {key==='reports_to_text'?<>
+     <select value={reportingTitles.includes(draft[key])?draft[key]:''} disabled={busy||!options?.line_managers} onChange={event=>{
+      const designation=event.target.value
+      const choices=options?.line_managers?.filter(manager=>manager.designation===designation)??[]
+      setDraft(old=>({...old,reports_to_text:designation,line_manager_employee_no:choices.length===1?choices[0].employee_no:''}))
+     }}>
+      <option value="">Select a designation</option>
+      {reportingTitles.map(title=><option key={title} value={title}>{title}</option>)}
+     </select>
+     {options?.line_managers&&draft[key]&&!reportingTitles.includes(draft[key])&&<span className="field-hint">Previously recorded: {draft[key]}</span>}
+    </>:key==='line_manager_employee_no'?<select value={selectedManager?draft[key]:''} disabled={busy||!managers.length} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
+     <option value="">{managers.length?'Select a line manager':'Select a designation first'}</option>
+     {managers.map(manager=><option key={manager.employee_no} value={manager.employee_no}>{manager.name}{manager.location?' · '+manager.location:''}{managers.some(other=>other.employee_no!==manager.employee_no&&other.name===manager.name&&other.location===manager.location)?' · '+manager.employee_no:''}</option>)}
+    </select>:key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
      <option value="">Select a qualification level</option>
      {selectChoices(qualificationLevels,draft[key]).map(level=><option key={level} value={level}>{level}</option>)}
     </select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value}))}>
      <option value="">{options?'Select an option':'Loading options...'}</option>
-     {selectChoices(options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{key==='reports_to_text'?reportingTitle(option):option}</option>)}
+     {selectChoices(options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{option}</option>)}
     </select>:key==='probation'?<>
      <input type="number" min={0} max={6} step={1} inputMode="numeric" value={validProbation(draft.probation)?draft.probation:''} readOnly={draft.employment_type==='Permanent'} disabled={busy} placeholder="0 to 6" aria-describedby="probation-help" onChange={event=>setDraft(old=>({...old,probation:event.target.value}))}/>
      <span id="probation-help" className="field-hint">{draft.employment_type==='Permanent'?'Permanent: 3 months.':!validProbation(draft.probation)?'Current recorded text: '+draft.probation+'. Enter 0–6 months to replace it.':'Enter a whole number from 0 to 6 months.'}</span>
