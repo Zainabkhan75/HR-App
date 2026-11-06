@@ -2,7 +2,7 @@ import {NextResponse} from 'next/server'
 import {createHash} from 'node:crypto'
 import {sameOriginRequest} from '../../../../lib/signin-server'
 import {serviceDb,signPreview,uploadContext,verifyPreview} from '../../../../lib/bulk-upload-server'
-import {readMonthlyPayroll} from '../../../../lib/monthly-payroll'
+import {payrollName,readPayrollCycle} from '../../../../lib/monthly-payroll'
 
 const json=(body:object,status=200)=>NextResponse.json(body,{status,headers:{'Cache-Control':'private, no-store'}})
 export async function POST(request:Request){
@@ -15,30 +15,79 @@ export async function POST(request:Request){
   if(!(file instanceof File)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||month<'2026-10'||(action!=='preview'&&action!=='publish'))return json({error:'Choose a payroll month and an Excel file.'},400)
   if(file.size>4_000_000)return json({error:'File exceeds 4 MB'},413)
   const bytes=Buffer.from(await file.arrayBuffer())
-  const rows=await readMonthlyPayroll(bytes,month)
+  const {rows,changes,approvedNew,aliases}=await readPayrollCycle(bytes,month)
   const admin=serviceDb()
   const {data:published,error:periodError}=await admin.from('monthly_payroll').select('payroll_month').eq('payroll_month',month+'-01').limit(1)
   if(periodError)throw Error('Monthly payroll storage is unavailable.')
   if(published.length)return json({error:'This payroll month is already published.'},409)
-  const roster=new Map<string,{id:string;full_name:string;updated_at:string}>()
-  for(let i=0;i<rows.length;i+=200){
-   const {data,error}=await ctx.db.from('employees').select('id,employee_no,full_name,updated_at').in('employee_no',rows.slice(i,i+200).map(row=>row.employeeNo))
-   if(error)throw Error('Employee records could not be checked.')
+  const roster=new Map<string,{id:string;full_name:string;updated_at:string;employment_state:string;leaving_date:string|null}>()
+  for(let offset=0;;offset+=500){
+   const {data,error}=await ctx.db.from('employees').select('id,employee_no,full_name,updated_at,employment_state,leaving_date').order('employee_no').range(offset,offset+499)
+   if(error||!data)throw Error('Employee records could not be checked.')
    for(const employee of data)roster.set(employee.employee_no,employee)
+   if(data.length<500)break
   }
-  const unknown=rows.filter(row=>!roster.has(row.employeeNo))
-  if(unknown.length)throw Error('Unknown employee IDs: '+unknown.map(row=>row.employeeNo).join(', '))
-  const hash=createHash('sha256').update('monthly-payroll:'+ctx.user.id+':'+month+':').update(bytes).update(JSON.stringify(rows.map(row=>roster.get(row.employeeNo)))).digest('hex')
+  const newEmployees=new Map<string,{name:string;designation:string}>()
+  function resolve(id:string,name:string){
+   const key=payrollName(name),alias=aliases.get(key)
+   if(id&&alias&&id!==alias)throw Error('Conflicting confirmed IDs for '+name)
+   if(id||alias){
+    const number=id||alias!
+    if(!roster.has(number))throw Error('Unknown employee ID '+number+' for '+name)
+    return number
+   }
+   const approved=approvedNew.get(key)
+   if(!approved)throw Error('Employee ID is required for '+name)
+   const matches=[...roster].filter(([,employee])=>payrollName(employee.full_name)===key)
+   if(matches.length>1)throw Error('More than one employee matches '+name)
+   if(matches.length===1)return matches[0][0]
+   if(!approved.designation)throw Error('A role is required to create '+name)
+   const reference='new:'+key
+   newEmployees.set(reference,approved)
+   return reference
+  }
+  const payroll=rows.map(row=>({...row,reference:resolve(row.employeeNo,row.sourceName)}))
+  if(new Set(payroll.map(row=>row.reference)).size!==payroll.length)throw Error('Multiple payroll rows match the same employee.')
+  const names=new Map(payroll.map(row=>[payrollName(row.sourceName),row.reference]))
+  const resolved=changes.map(change=>{
+   const reference=change.employeeNo||aliases.has(payrollName(change.name))?resolve(change.employeeNo,change.name):
+    names.get(payrollName(change.name))??resolve('',change.name)
+   const employee=roster.get(reference)
+   if(employee&&payrollName(employee.full_name)!==payrollName(change.name)&&aliases.get(payrollName(change.name))!==reference){
+    throw Error('Name and employee ID disagree on Review row '+change.row)
+   }
+   return {...change,reference}
+  })
+  const changeKeys=new Set<string>()
+  const payrollByReference=new Map(payroll.map(row=>[row.reference,row]))
+  for(const change of resolved){
+   const key=change.reference+'|'+change.field
+   if(changeKeys.has(key))throw Error('Duplicate field decision on Review row '+change.row)
+   changeKeys.add(key)
+   if(change.field==='new_card'){
+    const row=payrollByReference.get(change.reference)
+    if(row)row.fields.new_card=change.value
+   }
+  }
+  const referenced=[...new Set([...payroll,...resolved].map(row=>row.reference))].sort()
+  const employees=referenced.flatMap(reference=>{
+   const employee=roster.get(reference)
+   return employee?[{reference,id:employee.id,updated_at:employee.updated_at}]:[]
+  })
+  const creates=[...newEmployees].map(([reference,employee])=>({reference,...employee}))
+  const hash=createHash('sha256').update('payroll-cycle:'+ctx.user.id+':'+month+':').update(bytes).update(JSON.stringify(employees)).digest('hex')
   if(action==='preview'){
    return json({month,token:signPreview({hash,expires:Date.now()+30*60*1000,timestamps:[]}),netCents:rows.reduce((sum,row)=>sum+row.netCents,0),
-    rows:rows.map(row=>({employeeNo:row.employeeNo,name:roster.get(row.employeeNo)!.full_name,sourceName:row.sourceName,netCents:row.netCents}))})
+    changes:resolved,creates,
+    rows:payroll.map(row=>({employeeNo:row.reference,name:roster.get(row.reference)?.full_name??row.sourceName,sourceName:row.sourceName,netCents:row.netCents}))})
   }
   verifyPreview(String(form.get('token')??''),hash)
-  const {data,error}=await admin.rpc('publish_monthly_payroll',{
+  const {data,error}=await admin.rpc('apply_payroll_cycle',{
    p_month:month+'-01',p_actor:ctx.user.id,
-   p_rows:rows.map(row=>({employee_id:roster.get(row.employeeNo)!.id,fields:row.fields})),
+   p_employees:employees,p_new:creates,p_changes:resolved,
+   p_rows:payroll.map(row=>({reference:row.reference,fields:row.fields})),
   })
-  if(error)return json({error:'Payroll could not be published. Check whether the month is already published, then refresh the preview.'},409)
-  return json({published:data,month})
+  if(error)return json({error:'Payroll cycle could not be applied. Preview again and contact HR support if the problem continues.'},409)
+  return json({published:data.published,changed:data.changed,created:data.created,month})
  }catch(error){return json({error:error instanceof Error?error.message:'Payroll upload failed.'},400)}
 }
