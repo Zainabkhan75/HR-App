@@ -60,3 +60,7 @@ label input,label select,label textarea,label button{text-transform:none}
 .credentials-table :is(th,td):first-child{min-width:64px;width:64px;padding-inline:8px;text-align:center}
 .credentials-table :is(th,td):nth-child(2){min-width:90px;width:90px}
 .credentials-table :is(th,td):nth-child(5){min-width:82px;width:82px;padding-inline:8px}
+
+.bandana-heading{display:flex;align-items:flex-start;gap:12px}
+.bandana-heading>img{flex:none;border-radius:8px}
+.bandana-heading>div{min-width:0}
