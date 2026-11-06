@@ -104,7 +104,7 @@ begin
        (select count(distinct value->>'employee_id') from jsonb_array_elements(slips))<>jsonb_array_length(slips) or
        exists (select 1 from jsonb_array_elements(slips) s
         left join public.monthly_payroll mp on mp.payroll_month=p_month and mp.employee_id=(s.value->>'employee_id')::uuid
-        where (mp.fields-'new_card') is distinct from (s.value->'fields'-'new_card')) then
+        where (mp.fields-'new_card'::text) is distinct from ((s.value->'fields')-'new_card'::text)) then
       raise exception 'Workbook pay figures differ from published payroll';
     end if;
     published := 0;
