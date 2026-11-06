@@ -1,3 +1,4 @@
+export const qualificationLevels=['Matric','Intermediate','Diploma','Bachelor’s','Master’s','Other'] as const
 export const dropdownKeys=['department','location','reports_to_text','employment_type','work_location_mobility'] as const
 export type DropdownKey=typeof dropdownKeys[number]
 export type LineManagerOption={designation:string;employee_no:string;name:string;location:string|null}

@@ -7,9 +7,8 @@ import DateInput from '../date-input'
 import DesignationSelect from '../designation-select'
 import {isIsoDate,isProfileDateField} from '../../lib/date-input'
 import type {EmployeeProfile} from '../../lib/ess-profile'
-import {isDropdown,employmentChoice,validProbation,selectChoices} from '../../lib/profile-inputs'
+import {isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
-const qualificationLevels=['Matric','Intermediate','Diploma','Bachelor’s','Master’s','Other'] as const
 export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChange,onBusyChange}:{active:boolean;initialProfile:EmployeeProfile;onSaved:(value:EmployeeProfile)=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
  const [base,setBase]=useState(initialProfile),[draft,setDraft]=useState(()=>profileDraft(initialProfile))
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[conflict,setConflict]=useState(false)
