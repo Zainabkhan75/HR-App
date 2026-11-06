@@ -4,7 +4,7 @@ import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import FamilyEditor from './family-editor'
 import ProfileEditor from './profile-editor'
-import {fieldKey,payrollFields,payrollPeriodLabel} from '../employees/field-config'
+import Payslip from './payslip'
 import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
 import {formatMoneyField} from '../../lib/money'
@@ -98,15 +98,10 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
    </form>
   </section>:null}
 
-  {tab==='payroll'?<section className="panel">
-   <div className="ess-section-heading"><h2>My Payslip</h2><span className="ess-readonly">View Only</span></div>
-   <p>{payrollPeriodLabel}</p>
-   <FieldList fields={payrollFields.map(label=>[fieldKey(label),label] as const)} values={{
-    ...profile.payroll_sep_2026, employee_id:employee.employee_no, full_name:employee.full_name,
-    designation:employee.designation, date_of_joining:profile.employment.date_of_joining,
-   }}/>
-   <FieldList fields={[[ 'medical_hospitalisation_limit_person_year_pkr', 'Medical Hospitalisation Limit / Person / Year (PKR)' ]]} values={profile.rewards}/>
-  </section>:null}
+  {tab==='payroll'?<><Payslip legacy={profile.payroll_sep_2026??{}} identity={{
+   employee_id:employee.employee_no,full_name:employee.full_name,
+   designation:employee.designation,date_of_joining:profile.employment.date_of_joining,
+  }}/><section className="panel"><FieldList fields={[[ 'medical_hospitalisation_limit_person_year_pkr', 'Medical Hospitalisation Limit / Person / Year (PKR)' ]]} values={profile.rewards}/></section></>:null}
 
   {isManager?<section className="panel"><h2>My team</h2>{teamUnavailable?<p role="alert">Your team could not be loaded. Please try again later.</p>:team.length===0?<p>No verified direct reports have been linked yet.</p>:<ul className="team-list">{team.map(member=><li key={member.employee_no}><strong>{member.full_name}</strong><span>{member.employee_no} · {display(member.designation)}</span></li>)}</ul>}</section>:null}
  </main>

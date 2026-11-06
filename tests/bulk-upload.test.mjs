@@ -8,6 +8,22 @@ const nodeRequire=createRequire(import.meta.url)
 function load(path,overrides={}){const source=readFileSync(new URL(path,import.meta.url),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,module={exports:{}};new Function('require','module','exports',compiled)((name)=>overrides[name]??nodeRequire(name),module,module.exports);return module.exports}
 const config=load('../app/employees/field-config.ts')
 const bulk=load('../lib/bulk-upload.ts',{'../app/employees/field-config':config})
+const monthly=load('../lib/monthly-payroll.ts',{'../app/employees/field-config':config})
+
+test('monthly payroll binds every row to one month and retains explicit zero allowances',async()=>{
+ const ExcelJS=nodeRequire('exceljs'),book=new ExcelJS.Workbook()
+ const sheet=book.addWorksheet('Payroll')
+ sheet.getRow(5).values=['Payroll Month',...config.payrollFields]
+ sheet.getRow(6).values=['2026-10','100001','Existing Person',null,null,null,31,1000,1000,null,null,null,null,null,0,null,null,null,null,1000]
+ const bytes=()=>book.xlsx.writeBuffer()
+ const rows=await monthly.readMonthlyPayroll(await bytes(),'2026-10')
+ assert.equal(rows[0].fields.fuel_allowance_vehicle_allow,'0')
+ assert.equal(rows[0].fields.total_compensation_rs,undefined)
+ assert.equal(rows[0].netCents,100000)
+ await assert.rejects(monthly.readMonthlyPayroll(await bytes(),'2026-11'),/month differs/)
+ sheet.getCell('B6').value=null
+ await assert.rejects(monthly.readMonthlyPayroll(await bytes(),'2026-10'),/Employee ID and name are required/)
+})
 const snapshot={employees:[{id:'e1',employee_no:'100001',full_name:'Existing Person',designation:'Advisor',department:null,reports_to_text:null,location:null,record_status:null,source_note:null,updated_at:'2026-10-28T10:00:00Z'}],details:[{employee_id:'e1',profile:{mobile:'03000000000',bank_account_number:'000123'},payroll_aug_2026:{payroll_fixed_salary_aug_2026_pkr:'80000'},updated_at:'2026-10-28T10:00:00Z'}]}
 
 test('composite template prefills latest values and keeps current-data reference sheets',async()=>{

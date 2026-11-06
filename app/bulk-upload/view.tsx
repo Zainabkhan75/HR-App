@@ -2,6 +2,7 @@
 import {useTableSort} from '../sortable-table'
 import {useState} from 'react'
 import {formatMoneyField} from '../../lib/money'
+import MonthlyPayrollUpload from './monthly-payroll'
 
 type Change={field:string;before:string;after:string;action:'fill'|'replace'|'skip'}
 type PreviewRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string;name:string;replace:boolean;fill:number;overwrite:number;skipped:number;unchanged:number;changes:Change[]}
@@ -24,6 +25,7 @@ export default function BulkUpload(){
  const previewSort=useTableSort(),loginSort=useTableSort()
  const shown=preview?.rows.filter(r=>showAll||r.fill+r.overwrite+r.skipped>0)??[]
  return <main className="shell"><header><div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Bulk employee upload</h1><p>Add new employees and update existing records</p></div><nav className="head-actions"><a href="/employees">Employee directory</a><a href="/reports">Reports</a></nav></header>
+ <MonthlyPayrollUpload/>
  <section className="panel"><h2>1. Download the Excel template</h2><p>The Employees and Family sheets are populated with the latest saved values when you download them. They cover core, profile, salary, bank, September payroll, spouse and child fields. Separate reference sheets preserve the original values for comparison.</p><button onClick={()=>void download()} disabled={busy}>Download template</button>
  <h2>2. Edit the values you want to update</h2><p>For existing employees choose <strong>UPDATE</strong> and match by Employee ID. For new employees add a row, choose <strong>NEW</strong>, leave Employee ID and YES/NO blank, and enter name, department and designation. The app assigns an Active employee ID when applied. Use a unique Upload reference such as NEW-01 to link any new family rows. Possible duplicate names, CNICs or email addresses must be resolved first.</p><p>For UPDATE rows, edit the relevant cell; blank cells leave stored values untouched. In each employee or family row, choose <strong>NO</strong> to fill empty fields only or <strong>YES</strong> to replace differing values too. An unchanged downloaded file makes no updates.</p><p className="muted">Account credentials, employment activation and leave settings use their own app workflows.</p>
  <label>Choose completed Excel file<input id="bulk-upload-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={e=>{setFile(e.target.files?.[0]??null);setPreview(null);setError('');setNotice('')}}/></label><button disabled={!file||busy} onClick={()=>void send('preview')}>{busy?'Working…':'Preview changes'}</button>
