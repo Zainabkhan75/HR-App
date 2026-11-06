@@ -12,7 +12,7 @@ import {formatMoneyField,isMoneyField} from '../../lib/money'
 import {sections,fieldKey,payrollFields,payrollProfileFields,payrollPeriodLabel} from './field-config'
 type Employee={employee_details?:{manager_no:string|null}|null;id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;leaving_date:string|null;employment_state:'active'|'inactive'}
 type Detail={payroll_sep_2026:Record<string,string>;profile:Record<string,string>}
-const baseFields:[Exclude<keyof Employee,'employee_details'>,string][]=[['full_name','Full name'],['designation','Designation'],['department','Department'],['reports_to_text','Reports To (Designation)'],['location','Location'],['record_status','Source record status'],['source_note','Source / verification note']]
+const baseFields:[Exclude<keyof Employee,'employee_details'>,string][]=[['full_name','Full name'],['designation','Designation'],['department','Department'],['reports_to_text','Reports To'],['location','Location'],['record_status','Source record status'],['source_note','Source / verification note']]
 type Credentials={employee_no:string;full_name:string;username:string;initial_password:string}
 export default function Directory({email}:{email:string}) {
  const [credentials,setCredentials]=useState<Credentials|null>(null),[accounts,setAccounts]=useState<Record<string,string>>({})
