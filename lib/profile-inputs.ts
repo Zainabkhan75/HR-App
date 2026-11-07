@@ -2,7 +2,19 @@ export const qualificationLevels=['Matric','Intermediate','Diploma','Bachelor’
 export const dropdownKeys=['department','location','reports_to_text','employment_type','work_location_mobility'] as const
 export type DropdownKey=typeof dropdownKeys[number]
 export type LineManagerOption={designation:string;employee_no:string;name:string;location:string|null}
-export type ProfileOptions=Record<DropdownKey,string[]>&{line_managers?:LineManagerOption[]}
+export type DepartmentDesignation={id:number;department_id:number;department:string;title:string}
+export type ProfileOptions=Record<DropdownKey,string[]>&{
+ line_managers?:LineManagerOption[]
+ department_designations?:DepartmentDesignation[]
+ department_options?:{id:number;name:string}[]
+}
+export function designationTitles(options:ProfileOptions|null,department:string):string[]{
+ if(!options?.department_designations)return options?.reports_to_text??[]
+ return options.department_designations.filter(item=>item.department.toLowerCase()===department.trim().toLowerCase()).map(item=>item.title)
+}
+export function departmentNames(options:ProfileOptions|null):string[]{
+ return options?.department_options?.map(item=>item.name)??options?.department??[]
+}
 export const isDropdown=(key:string):key is DropdownKey=>dropdownKeys.some(value=>value===key)
 export function employmentChoice(draft:Record<string,string>,value:string):Record<string,string>{
  return {...draft,employment_type:value,probation:value==='Permanent'?'3':draft.employment_type==='Permanent'?'':draft.probation}

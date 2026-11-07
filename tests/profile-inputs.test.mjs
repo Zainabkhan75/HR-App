@@ -7,6 +7,18 @@ const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.
 const exported={}
 new Function('exports',compiled)(exported)
 const {employmentChoice,validJoiningDate,validProbation,selectChoices}=exported
+
+test('designation choices belong to the selected department',()=>{
+ const options={reports_to_text:['Legacy'],department_designations:[
+  {id:1,department_id:10,department:'Finance',title:'Finance Manager'},
+  {id:2,department_id:20,department:'Administration',title:'Office Boy'},
+  {id:3,department_id:20,department:'Administration',title:'Manager'},
+ ]}
+ assert.deepEqual(exported.designationTitles(options,'Finance'),['Finance Manager'])
+ assert.deepEqual(exported.designationTitles(options,'Administration'),['Office Boy','Manager'])
+ assert.deepEqual(exported.designationTitles(options,'Unknown'),[])
+ assert.deepEqual(exported.designationTitles({reports_to_text:['Legacy']},'Finance'),['Legacy'])
+})
 test('Permanent sets three months and switching away clears its default',()=>{
  assert.equal(employmentChoice({probation:'na',employment_type:'Contractual'},'Permanent').probation,'3')
  assert.equal(employmentChoice({probation:'3',employment_type:'Permanent'},'Contractual').probation,'')

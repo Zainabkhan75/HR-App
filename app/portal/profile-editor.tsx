@@ -7,7 +7,7 @@ import DateInput from '../date-input'
 import DesignationSelect from '../designation-select'
 import {isIsoDate,isProfileDateField} from '../../lib/date-input'
 import type {EmployeeProfile} from '../../lib/ess-profile'
-import {isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels} from '../../lib/profile-inputs'
+import {isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels,designationTitles,departmentNames} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChange,onBusyChange}:{active:boolean;initialProfile:EmployeeProfile;onSaved:(value:EmployeeProfile)=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
  const [base,setBase]=useState(initialProfile),[draft,setDraft]=useState(()=>profileDraft(initialProfile))
@@ -88,12 +88,12 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
     </>:key==='line_manager_employee_no'?<select value={selectedManager?draft[key]:''} disabled={busy||!managers.length} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
      <option value="">{managers.length?'Select a line manager':'Select a designation first'}</option>
      {managers.map(manager=><option key={manager.employee_no} value={manager.employee_no}>{manager.name}{manager.location?' · '+manager.location:''}{managers.some(other=>other.employee_no!==manager.employee_no&&other.name===manager.name&&other.location===manager.location)?' · '+manager.employee_no:''}</option>)}
-    </select>:key==='designation'?<DesignationSelect titles={options?.line_managers?reportingTitles:null} value={draft[key]} disabled={busy} onChange={value=>setDraft(old=>({...old,[key]:value}))}/>:key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
+    </select>:key==='designation'?<DesignationSelect titles={options?designationTitles(options,draft.department??''):null} value={draft[key]} disabled={busy} onChange={value=>setDraft(old=>({...old,[key]:value}))}/>:key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
      <option value="">Select a qualification level</option>
      {selectChoices(qualificationLevels,draft[key]).map(level=><option key={level} value={level}>{level}</option>)}
-    </select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value}))}>
+    </select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value,...(key==='department'&&!designationTitles(options,event.target.value).includes(old.designation)?{designation:''}:{})}))}>
      <option value="">{options?'Select an option':'Loading options...'}</option>
-     {selectChoices(options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{option}</option>)}
+     {selectChoices(key==='department'?departmentNames(options):options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{option}</option>)}
     </select>:key==='probation'?<>
      <input type="number" min={0} max={6} step={1} inputMode="numeric" value={validProbation(draft.probation)?draft.probation:''} readOnly={draft.employment_type==='Permanent'} disabled={busy} placeholder="0 to 6" aria-describedby="probation-help" onChange={event=>setDraft(old=>({...old,probation:event.target.value}))}/>
      <span id="probation-help" className="field-hint">{draft.employment_type==='Permanent'?'Permanent: 3 months.':!validProbation(draft.probation)?'Current recorded text: '+draft.probation+'. Enter 0–6 months to replace it.':'Enter a whole number from 0 to 6 months.'}</span>
