@@ -64,3 +64,9 @@ label input,label select,label textarea,label button{text-transform:none}
 .bandana-heading{display:flex;align-items:flex-start;gap:12px}
 .bandana-heading>img{flex:none;border-radius:8px}
 .bandana-heading>div{min-width:0}
+
+.credentials-toolbar{align-items:flex-end;justify-content:flex-start;flex-wrap:nowrap;gap:12px;overflow-x:auto;padding:4px}
+.credentials-toolbar label{flex:0 0 auto;margin:0;white-space:nowrap}
+.credentials-toolbar label:first-child{flex:1 0 155px;max-width:260px}
+.credentials-toolbar :is(input,select,button){height:40px}
+.credentials-toolbar button{flex:0 0 auto;white-space:nowrap;padding-inline:12px;font-size:14px}
