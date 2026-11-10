@@ -7,7 +7,7 @@ import type {Recipient} from '../../lib/employee-emails'
 const defaultSubject = 'Your Bandana HR App account is ready'
 const defaultInvitation = `Hi {{name}},
 
-I’m resending your Bandana HR App invitation because the first email didn’t go through.
+Your Bandana HR App login is ready.
 
 Please open the employee portal at {{login_url}} and sign in using your registered email address and the temporary password shared with you separately. The app will ask you to set a new password at first sign-in.
 
