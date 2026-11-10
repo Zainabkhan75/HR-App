@@ -3,13 +3,14 @@ import DateInput from '../date-input'
 import {displayShortDate,parseShortDate} from '../../lib/date-input'
 import {useRef,useState} from 'react'
 import type {FormEvent} from 'react'
+import type {EmployeeProfile} from '../../lib/ess-profile'
 import {browserDb} from '../../lib/supabase'
 import {availableDays,countLeaveDays,employeeLeaveData,leaveTypes,titleCase} from '../../lib/leave'
 import {previewHeadOfficeLeave} from '../../lib/head-office-leave'
 import type {WorkspaceData,LeaveRequest,LeaveType,ApplicationLeaveType} from '../../lib/leave'
 type Section='leave'|'inbox'|'approvals'|'settings'
 type Payload=Record<string,unknown>
-export default function Workspace({initialData,initialSection,focusedRequest,embedded=false}:{embedded?:boolean;initialData:WorkspaceData;initialSection:string;focusedRequest?:string}){
+export default function Workspace({initialData,initialSection,focusedRequest,embedded=false,employee}:{employee?:EmployeeProfile['employee'];embedded?:boolean;initialData:WorkspaceData;initialSection:string;focusedRequest?:string}){
  const [data,setData]=useState(initialData),[section,setSection]=useState<Section>(initialSection==='settings'&&!initialData.is_hr?'leave':initialSection as Section)
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[uncertain,setUncertain]=useState(false)
  const lock=useRef(false)
@@ -27,10 +28,12 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
  const pilot=!!data.pilot_applicant
  const minDate=data.year+(pilot?'-07-01':'-01-01')
  const maxDate=pilot?(data.year+1)+'-06-30':data.year+'-12-31'
+ const partial=pilot&&form.leave_type==='casual'&&form.hours!==undefined
+ const lastDate=partial?form.start_date:form.end_date
  const needsBalance=form.leave_type!=='maternity'&&form.leave_type!=='unpaid'
- const estimate=data.policy && form.start_date>=minDate && form.end_date<=maxDate
-  ? pilot ? previewHeadOfficeLeave(form.start_date,form.end_date,form.leave_type,form.hours??'full-day',data.policy)
-   : countLeaveDays(form.start_date,form.end_date,data.policy)
+ const estimate=data.policy && form.start_date>=minDate && lastDate<=maxDate
+  ? pilot ? previewHeadOfficeLeave(form.start_date,lastDate,form.leave_type,form.hours??'full-day',data.policy)
+   : countLeaveDays(form.start_date,lastDate,data.policy)
   : null
  const employees=data.employees??[]
  const managerOptions=employees.filter(e=>e.account_active&&e.is_manager&&e.id!==assignment.employee_id)
@@ -84,7 +87,20 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
   catch(e){setError(e instanceof Error?e.message:'Could not reload.')}
   finally{lock.current=false;setBusy(false)}
  }
- async function submit(e:FormEvent){e.preventDefault();if(!canSubmit)return;if(estimate===null||estimate===0){setError('Choose dates with at least one chargeable day, within the selected year.');return}if(needsBalance&&(!balance||(availableDays(balance)??0)<estimate)){setError('This request exceeds your available balance.');return}await run('leave_action','submit',form,'Leave request submitted to your line manager. Email notification is waiting for email setup.',()=>setForm(old=>({...old,start_date:'',end_date:'',reason:''})))}
+ async function submit(e:FormEvent<HTMLFormElement>){
+  e.preventDefault()
+  if(!canSubmit)return
+  if(!form.reason.trim()){setError('Enter a reason for your leave request.');return}
+  if(estimate===null||estimate===0){setError('Choose dates with at least one chargeable day, within the selected year.');return}
+  if(needsBalance&&(!balance||(availableDays(balance)??0)<estimate)){setError('This request exceeds your available balance.');return}
+  const element=e.currentTarget
+  const fields=new FormData(element)
+  const application={...Object.fromEntries(fields),declaration:fields.has('declaration'),medical_certificate:fields.has('medical_certificate')}
+  await run('leave_action','submit',{...form,end_date:lastDate,application},'Leave request submitted to your line manager.',()=>{
+   element.reset()
+   setForm(old=>({...old,start_date:'',end_date:'',reason:'',hours:undefined}))
+  })
+ }
  function openingEmployee(value:string,type:LeaveType=opening.leave_type){const row=data.openings?.find(o=>o.employee_id===value&&o.leave_type===type);setOpening({employee_id:value,leave_type:type,entitlement:String(row?.entitlement??data.policy?.[type]??10),taken:row?String(row.taken):''})}
  function requests(rows:LeaveRequest[],approvals=false){return rows.length===0?<p>No {approvals?'team requests':'leave applications'} for {data.year}.</p>:<div className="request-list">{rows.map(r=><article className={'request-card'+(focusedRequest===r.id?' request-focus':'')} key={r.id} id={'request-'+r.id}>
   <div className="ess-section-heading"><h3>{approvals?r.employee_name:titleCase(r.leave_type)+' leave'}{approvals?<span className="muted"> · {r.employee_no}</span>:null}</h3><span className={'status '+r.status}>{titleCase(r.status)}</span></div>
@@ -100,12 +116,46 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
 
    {!embedded&&<div className="workspace-toolbar"><form onSubmit={e=>{e.preventDefault();const selected=Number(year);if(selected<2020||selected>2100)return;if((form.reason||form.start_date||form.end_date)&&!window.confirm('Change year and clear your unsaved leave application?'))return;void reload(selected)}}><label>Leave year<input type="number" min={2020} max={2100} required value={year} disabled={busy} onChange={e=>setYear(e.target.value)}/></label><button className="secondary" disabled={busy}>Load year</button></form><button className="secondary" disabled={busy} onClick={()=>void reload()}>{busy?'Please wait...':'Refresh'}</button></div>}
    {error?<p role="alert" className="error">{error}</p>:null}{notice?<p role="status" className="notice">{notice}</p>:null}
-   <section hidden={section!=='leave'}><h2>My leave · {data.year}</h2>
+   <section hidden={section!=='leave'}><div className="ess-section-heading">
+     <h2>My leave · {pilot?data.year+'–'+(data.year+1):data.year}</h2>
+     {embedded&&<button type="button" className="secondary" disabled={busy} onClick={()=>void reload()}>Refresh balances and requests</button>}
+    </div>
     {!data.employee_id?<p className="panel">This HR account is not linked to an employee record. Use HR setup to configure leave and Leave overview to monitor requests.</p>:<>
     {!data.policy?<p className="error">HR has not configured this leave year yet.</p>:<p className="muted">{pilot?'July–June':'January–December'} · {data.policy.weekdays_only?'Monday–Friday; weekends excluded':'Calendar days'} · {data.policy.holidays.length} configured holiday(s) excluded.</p>}
     <div className="leave-balances">{data.balances.map(b=><article className="panel" key={b.type}><h3>{titleCase(b.type)}</h3><strong className="balance-number">{b.entitlement??'—'} <small>days entitled</small></strong><dl><div><dt>Taken to date</dt><dd>{b.verified?b.taken:'HR verification needed'}</dd></div><div><dt>Approved, upcoming</dt><dd>{b.approved-Math.max(0,b.taken-(b.opening_taken??0))}</dd></div><div><dt>Pending approval</dt><dd>{b.pending}</dd></div><div><dt>Available leave</dt><dd>{availableDays(b)??'HR verification needed'}</dd></div></dl>{!b.verified?<p className="muted">No historical usage has been assumed. Ask HR to confirm your opening balance.</p>:null}</article>)}</div>
-    {(pilot||data.pilot_applicant===undefined)&&<div className="panel"><h3>Apply for leave</h3><p>Line manager: {data.manager?data.manager.name+(data.manager.designation?' · '+data.manager.designation:''):'Not yet verified by HR'}</p>{!data.manager?.ready?<p className="muted">HR must assign one verified line manager with an active manager account before applications can be submitted.</p>:null}
-     <form onSubmit={submit}><div className="family-fields"><label>Leave type<select value={form.leave_type} disabled={busy} onChange={e=>setForm(old=>({...old,leave_type:e.target.value as ApplicationLeaveType,hours:undefined}))}>{(pilot?[...leaveTypes,'maternity','unpaid']:leaveTypes).map(t=><option key={t} value={t}>{titleCase(t)}</option>)}</select></label><label>Available to request<input readOnly value={balance?availableDays(balance)??'Awaiting HR verification':needsBalance?'Not configured':'No paid balance applies'}/></label>{pilot&&form.leave_type==='casual'&&<label>Duration<select value={form.hours??''} disabled={busy} onChange={e=>setForm(old=>({...old,hours:e.target.value==='2'?2:e.target.value==='4'?4:undefined}))}><option value="">Full day</option><option value="2">Two hours</option><option value="4">Four hours</option></select></label>}<label>First day<DateInput required referenceYear={data.year} min={minDate} max={maxDate} value={form.start_date} disabled={busy} onChange={value=>setForm(old=>({...old,start_date:value}))}/></label><label>Last day<DateInput required referenceYear={data.year} min={/^\d{4}-\d{2}-\d{2}$/.test(form.start_date)?form.start_date:minDate} max={maxDate} value={form.end_date} disabled={busy} onChange={value=>setForm(old=>({...old,end_date:value}))}/></label></div><label>Reason<textarea required maxLength={2000} rows={3} value={form.reason} disabled={busy} onChange={e=>setForm(old=>({...old,reason:e.target.value}))}/></label><p>{estimate===null?'Choose dates to preview chargeable days.':'Chargeable leave: '+estimate+' day(s).'}</p><button disabled={!canSubmit}>Submit leave application</button></form>
+    {(pilot||data.pilot_applicant===undefined)&&<div className="panel"><h3>Leave Application Form</h3><p className="muted">Form BND-HR-LVF-001 · Issued under the Head Office Leave Policy (BND-HR-LVP-001) · Rev 0</p><p>Line manager: {data.manager?data.manager.name+(data.manager.designation?' · '+data.manager.designation:''):'Not yet verified by HR'}</p>{!data.manager?.ready?<p className="muted">HR must assign one verified line manager with an active manager account before applications can be submitted.</p>:null}
+     <form onSubmit={submit}>
+      <h4>A &nbsp; EMPLOYEE DETAILS</h4>
+      <div className="family-fields">
+       {employee&&<>
+        <label>Employee Name<input readOnly value={employee.full_name}/></label>
+        <label>Employee ID<input readOnly value={employee.employee_no}/></label>
+        <label>Department<input readOnly value={employee.department??''}/></label>
+        <label>Designation<input readOnly value={employee.designation??''}/></label>
+       </>}
+       <label>On Probation?<select name="on_probation" defaultValue="" required disabled={busy}><option value="" disabled>Choose an item</option><option value="yes">Yes</option><option value="no">No</option><option value="unsure">Unsure</option></select></label>
+      </div>
+      <h4>B &nbsp; LEAVE DETAILS</h4>
+      <div className="family-fields"><label>Leave type<select value={form.leave_type} disabled={busy} onChange={e=>setForm(old=>({...old,leave_type:e.target.value as ApplicationLeaveType,hours:undefined}))}>{(pilot?[...leaveTypes,'maternity','unpaid']:leaveTypes).map(t=><option key={t} value={t}>{titleCase(t)}</option>)}</select></label><label>Available to request<input readOnly value={balance?availableDays(balance)??'Awaiting HR verification':needsBalance?'Not configured':'No paid balance applies'}/></label>{pilot&&form.leave_type==='casual'&&<label>Duration<select value={form.hours??''} disabled={busy} onChange={e=>setForm(old=>({...old,hours:e.target.value==='2'?2:e.target.value==='4'?4:undefined}))}><option value="">Full day</option><option value="2">Short leave · 2 hours (0.25 day)</option><option value="4">Half day · 4 hours (0.5 day)</option></select></label>}<label>From<DateInput required referenceYear={data.year} min={minDate} max={maxDate} value={form.start_date} disabled={busy} onChange={value=>setForm(old=>({...old,start_date:value}))}/></label>{!partial&&<label>To<DateInput required referenceYear={data.year} min={/^\d{4}-\d{2}-\d{2}$/.test(form.start_date)?form.start_date:minDate} max={maxDate} value={form.end_date} disabled={busy} onChange={value=>setForm(old=>({...old,end_date:value}))}/></label>}{partial&&<label>Short Leave Time<input name="short_leave_time" required maxLength={80} placeholder="e.g. 10:00 – 12:00" disabled={busy}/></label>}
+      {form.leave_type==='maternity'&&<label>Date of Childbirth<input type="date" name="childbirth" required disabled={busy}/></label>}
+      <label>Contact During Leave<input name="contact" type="tel" required maxLength={80} disabled={busy} placeholder="Phone number"/></label>
+      <label>Work Handed Over To<input name="handover" maxLength={150} disabled={busy} placeholder="Name of colleague"/></label>
+      </div><label>Reason for Leave<textarea required maxLength={2000} rows={3} value={form.reason} disabled={busy} onChange={e=>setForm(old=>({...old,reason:e.target.value}))}/></label><p aria-live="polite">{estimate===null
+      ? form.leave_type==='maternity'?'Select 84 consecutive calendar days.':'Choose dates to preview the leave charge.'
+      : estimate===0?'No working days fall within these dates.':(form.leave_type==='maternity'||form.leave_type==='unpaid'?'No. of Calendar Days: ':'No. of Working Days: ')+estimate}</p>
+     {needsBalance&&balance&&!balance.verified&&<p className="muted">HR must confirm your opening balance before you can submit this leave type.</p>}<fieldset disabled={busy}>
+      <legend>Documents Attached</legend>
+      <label><input type="checkbox" name="medical_certificate"/> Medical certificate</label>
+      <label>Other: specify<input name="other_document" maxLength={200}/></label>
+      <p className="muted">This records which documents you have. Share the documents separately with HR if requested.</p>
+     </fieldset>
+     <fieldset disabled={busy}>
+      <legend>EMPLOYEE DECLARATION</legend>
+      <label><input type="checkbox" name="declaration" required/> I confirm that the information above is correct and that I have read the Leave Policy. I understand that false information or misuse of leave may lead to disciplinary action.</label>
+      <label>Employee Signature<input name="signature" required maxLength={150} placeholder="Type name or sign"/></label>
+      <p className="muted">The application and signature date are recorded when you submit.</p>
+     </fieldset>
+     <button disabled={!canSubmit}>Submit leave application</button></form>
     </div>}<h3>My Leave Requests</h3>{requests(data.requests)}</>}
    </section>
    {!embedded&&<><section hidden={section!=='inbox'}><h2>Inbox</h2><p>Leave requests, decisions and assigned tasks. {unread} unread.</p>{data.inbox.length===0?<div className="panel"><p>Your inbox is empty.</p></div>:<div className="request-list">{data.inbox.map(item=><article className={'request-card'+(!item.read_at?' inbox-unread':'')} key={item.id}><div className="ess-section-heading"><h3>{item.title}</h3><span className="status">{item.completed_at?'Completed':!item.read_at?'Unread':'Read'}</span></div><p className="request-text">{item.body}</p><p className="muted">{item.created_at.slice(0,10)} · {item.kind.replaceAll('_',' ')}</p><div className="ess-form-actions">{item.request_id?<a className="recovery-action" href={'/workspace?section='+(item.kind==='leave_request'?'approvals':'leave')+'&year='+(item.request_year??data.year)+'&request='+item.request_id}>Open request</a>:null}{!item.read_at?<button className="secondary" disabled={busy||uncertain} onClick={()=>void run('leave_action','read',{id:item.id},'Marked as read.')}>Mark as read</button>:null}{item.kind==='task'&&!item.completed_at?<button disabled={busy||uncertain} onClick={()=>void run('leave_action','complete',{id:item.id},'Task marked complete.')}>Mark task complete</button>:null}</div></article>)}</div>}<p className="muted">Showing the latest 200 inbox items.</p></section>

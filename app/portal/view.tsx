@@ -90,7 +90,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
    <button type="button" aria-pressed={tab==='leave'} className={tab==='leave'?'ess-nav-active':''} onClick={()=>setTab('leave')}>Leave</button>
   </nav>
   <div hidden={tab!=='leave'}>{leaveData
-   ?<Workspace initialData={leaveData} initialSection="leave" embedded/>
+   ?<Workspace initialData={leaveData} initialSection="leave" employee={employee} embedded/>
    :<section className="panel"><h2>Leave application</h2><p>HR needs to enable leave applications for your account.</p></section>}</div>
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}
