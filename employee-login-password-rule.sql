@@ -1,17 +1,23 @@
-do $rule$ declare s text;begin
-s:=pg_get_functiondef('public.prepare_employee_login(uuid,uuid,text)'::regprocedure);
-s:=replace(s,$old$ first_name:=(regexp_split_to_array(btrim(e.full_name),'[[:space:]]+'))[1];
- if e.employee_no !~ '^[0-9]{6}$' or nullif(first_name,'') is null then raise exception 'A first name and six-digit employee ID are required';end if;$old$,$new$ cnic:=regexp_replace(coalesce(d.profile->>'cnic_passport',''),'[-[:space:]]','','g');
- if cnic !~ '^[0-9]{13}$' then raise exception 'Add a valid 13-digit CNIC before creating a login';end if;
- first_name:=(regexp_split_to_array(btrim(e.full_name),'[[:space:]]+'))[1];
- if length(first_name)+4<6 then raise exception 'First name is too short for the agreed password rule. HR decision required.';end if;$new$);
-s:=replace(s,'first_name||right(e.employee_no,5)','first_name||right(cnic,4)');
-if position('right(cnic,4)' in s)=0 or position('Add a valid 13-digit CNIC' in s)=0 then raise exception 'Original rule restoration incomplete';end if;execute s;end $rule$;
-notify pgrst,'reload schema';
-do $rule$ declare s text;begin
-s:=pg_get_functiondef('public.prepare_employee_login(uuid,uuid,text)'::regprocedure);
-s:=replace(s,$old$ if cnic !~ '^[0-9]{13}$' then raise exception 'Add a valid 13-digit CNIC before creating a login';end if;$old$,'');
-s:=replace(s,$old$ if length(first_name)+4<6 then raise exception 'First name is too short for the agreed password rule. HR decision required.';end if;$old$,'');
-s:=replace(s,'first_name||right(cnic,4)', $new$case when cnic ~ '^[0-9]{13}$' and length(first_name)+4>=6 then first_name||right(cnic,4) else 'Pakistan1234' end$new$);
-if position('Pakistan1234' in s)=0 then raise exception 'Fallback rule change incomplete';end if;execute s;end $rule$;
+create or replace function public.prepare_employee_login(p_employee uuid,p_actor uuid,p_token text default null)
+returns jsonb language plpgsql security invoker set search_path='' as $f$
+declare e public.employees%rowtype;d public.employee_details%rowtype; candidate text; selected text; job uuid; r jsonb;
+begin
+ if not exists(select 1 from public.user_roles where user_id=p_actor and role='hr_admin') then raise exception 'HR administrator required';end if;
+ select * into e from public.employees where id=p_employee for update;
+ select * into d from public.employee_details where employee_id=p_employee;
+ if e.id is null or d.employee_id is null then raise exception 'Save the employee profile first';end if;
+ if e.employment_state<>'active' then raise exception 'Activate the employee before creating a login';end if;
+ if exists(select 1 from public.employee_accounts where employee_id=p_employee) then raise exception 'Employee already has a login. Its password was not changed.';end if;
+ if exists(select 1 from hrms_private.employee_import_jobs j,jsonb_array_elements(j.rows) v where j.status in ('pending','running') and j.expires_at>now() and v->>'employee_id'=p_employee::text) then raise exception 'Login creation is already in progress. Please wait before retrying.';end if;
+ foreach candidate in array array[lower(btrim(coalesce(d.profile->>'email',''))),lower(btrim(coalesce(d.profile->>'personal_email','')))] loop
+  if candidate ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' and length(candidate)<=254
+   and not exists(select 1 from public.employee_details where employee_id<>p_employee and (lower(btrim(coalesce(profile->>'email','')))=candidate or lower(btrim(coalesce(profile->>'personal_email','')))=candidate)) then selected:=candidate;exit;end if;
+ end loop;
+ if selected is null then raise exception 'Add a unique valid work or personal email before creating a login';end if;
+ if exists(select 1 from auth.users where lower(email)=selected) then raise exception 'This email already belongs to a sign-in account. Resolve the conflict before creating a login.';end if;
+ r:=jsonb_build_object('employee_id',e.id,'employee_no',e.employee_no,'login_email',selected,'expected_updated_at',e.updated_at,'expected_profile_updated_at',d.updated_at,'actor_id',p_actor);
+ insert into hrms_private.employee_import_jobs(source_file,token_hash,expires_at,status,rows)
+ values('Admin portal employee login creation',case when p_token is null then '' else encode(extensions.digest(p_token,'sha256'),'hex') end,now()+interval '10 minutes',case when p_token is null then 'running' else 'pending' end,jsonb_build_array(r)) returning id into job;
+ return jsonb_build_object('job',job,'employee_id',e.id,'employee_no',e.employee_no,'full_name',e.full_name,'username',selected,'initial_password','Pakistan1234');
+end $f$;
 notify pgrst,'reload schema';

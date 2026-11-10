@@ -53,9 +53,6 @@ export async function POST(request:Request){
  if(accountError||!accounts)return response({error:'Account list unavailable'},503)
  const accountByEmployee=new Map((accounts as Account[]).map(a=>[a.employee_id,a]))
  if(ids.some(id=>!accountByEmployee.get(employeeByNo.get(id)!.id)?.is_active))return response({error:'A selected employee has no active linked account. Refresh and try again'},409)
- const {data:details,error:detailError}=await admin.from('employee_details').select('employee_id,profile').in('employee_id',employees.map(e=>e.id))
- if(detailError||!details)return response({error:'Employee CNIC details unavailable'},503)
- const cnics=new Map(details.map(d=>[d.employee_id,String(d.profile?.cnic_passport??'').replace(/[-\s]/g,'')]))
  const userIds=accounts.map(a=>a.user_id)
  const {data:roles,error:roleError}=await admin.from('user_roles').select('user_id,role').in('user_id',userIds)
  if(roleError||!roles)return response({error:'Role check unavailable'},503)
@@ -66,8 +63,7 @@ export async function POST(request:Request){
   const employee=employeeByNo.get(id)!,account=accountByEmployee.get(employee.id)!
   const {data:auth,error:authError}=await admin.auth.admin.getUserById(account.user_id)
   if(authError||!auth.user||auth.user.email?.toLowerCase()!==account.login_email.toLowerCase())return response({error:'Authentication identity mismatch. No further passwords were generated.',results},409)
-  const first=employee.full_name.trim().split(/\s+/)[0],cnic=cnics.get(employee.id)??''
-  const password=/^\d{13}$/.test(cnic)&&first.length+4>=6?first+cnic.slice(-4):'Pakistan1234'
+  const password = 'Pakistan1234';
   const {error:flagError}=await admin.from('employee_accounts').update({must_change_password:true}).eq('employee_id',employee.id).eq('user_id',account.user_id).eq('is_active',true).select('employee_id').single()
   if(flagError)return response({error:'Could not require password change. No further passwords were generated.',results},503)
   const {error:passwordError}=await admin.auth.admin.updateUserById(account.user_id,{password})

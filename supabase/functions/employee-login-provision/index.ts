@@ -15,9 +15,7 @@ const {data:d,error:de}=await db.from('employee_details').select('profile,update
 if(ee||de||!e||!d||e.updated_at!==row.expected_updated_at||d.updated_at!==row.expected_profile_updated_at)throw Error('Employee changed since review');
 const {data:links,error:le}=await db.from('employee_accounts').select('employee_id').eq('employee_id',row.employee_id);
 if(le||links?.length)throw Error('Account already linked or unreadable');
-const cnic=String(d.profile.cnic_passport??'').replace(/[-\s]/g,'');
-const first=String(e.full_name).trim().split(/\s+/)[0];
-const password=/^\d{13}$/.test(cnic)&&first.length+4>=6?first+cnic.slice(-4):'Pakistan1234';
+const password = 'Pakistan1234';
 const attrs={password,email_confirm:true,app_metadata:{employee_provision_job:input.job},user_metadata:{full_name:e.full_name}};
 if(row.existing_user_id){
 const {data:existing,error:ue}=await db.auth.admin.getUserById(row.existing_user_id);

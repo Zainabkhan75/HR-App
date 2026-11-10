@@ -1,6 +1,6 @@
 create or replace function public.prepare_employee_login(p_employee uuid,p_actor uuid,p_token text default null)
 returns jsonb language plpgsql security invoker set search_path='' as $f$
-declare e public.employees%rowtype;d public.employee_details%rowtype; candidate text; selected text; cnic text; first_name text; job uuid; r jsonb;
+declare e public.employees%rowtype;d public.employee_details%rowtype; candidate text; selected text; job uuid; r jsonb;
 begin
  if not exists(select 1 from public.user_roles where user_id=p_actor and role='hr_admin') then raise exception 'HR administrator required';end if;
  select * into e from public.employees where id=p_employee for update;
@@ -15,14 +15,10 @@ begin
  end loop;
  if selected is null then raise exception 'Add a unique valid work or personal email before creating a login';end if;
  if exists(select 1 from auth.users where lower(email)=selected) then raise exception 'This email already belongs to a sign-in account. Resolve the conflict before creating a login.';end if;
- cnic:=regexp_replace(coalesce(d.profile->>'cnic_passport',''),'[-[:space:]]','','g');
- if cnic !~ '^[0-9]{13}$' then raise exception 'Add a valid 13-digit CNIC before creating a login';end if;
- first_name:=split_part(btrim(e.full_name),' ',1);
- if length(first_name)+4<6 then raise exception 'First name is too short for the agreed password rule. HR decision required.';end if;
  r:=jsonb_build_object('employee_id',e.id,'employee_no',e.employee_no,'login_email',selected,'expected_updated_at',e.updated_at,'expected_profile_updated_at',d.updated_at,'actor_id',p_actor);
  insert into hrms_private.employee_import_jobs(source_file,token_hash,expires_at,status,rows)
  values('Admin portal employee login creation',case when p_token is null then '' else encode(extensions.digest(p_token,'sha256'),'hex') end,now()+interval '10 minutes',case when p_token is null then 'running' else 'pending' end,jsonb_build_array(r)) returning id into job;
- return jsonb_build_object('job',job,'employee_id',e.id,'employee_no',e.employee_no,'full_name',e.full_name,'username',selected,'initial_password',first_name||right(cnic,4));
+ return jsonb_build_object('job',job,'employee_id',e.id,'employee_no',e.employee_no,'full_name',e.full_name,'username',selected,'initial_password','Pakistan1234');
 end $f$;
 create or replace function public.finish_employee_login(p_job uuid,p_actor uuid) returns void language plpgsql security invoker set search_path='' as $f$
 begin

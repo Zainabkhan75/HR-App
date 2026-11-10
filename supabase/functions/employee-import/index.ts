@@ -15,10 +15,8 @@ Deno.serve(async(req:Request)=>{
   let created:string|null=null;
   try{
    if(row.login_email){
-    const first=String(row.core.full_name).trim().split(/\s+/)[0];
-    const cnic=String(row.profile.cnic_passport??'').replace(/[-\s]/g,'');
-    if(!first||!/^[0-9]{13}$/.test(cnic))throw Error('Invalid password inputs');
-    const {data,error}=await db.auth.admin.createUser({email:row.login_email,password:first+cnic.slice(-4),email_confirm:true,app_metadata:{employee_import_job:input.job},user_metadata:{full_name:row.core.full_name}});
+    const password = 'Pakistan1234';
+    const {data,error}=await db.auth.admin.createUser({email:row.login_email,password,email_confirm:true,app_metadata:{employee_import_job:input.job},user_metadata:{full_name:row.core.full_name}});
     if(error||!data.user)throw Error('Account creation failed: '+(error?.code??'unknown'));
     created=data.user.id;
    }
