@@ -11,7 +11,7 @@ import {formatMoneyField} from '../../lib/money'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
 const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','My Payslip']] as const
-type Tab=typeof tabs[number][0]
+type Tab=typeof tabs[number][0]|'leave'
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
 function FieldList({fields,values}:{fields:readonly (readonly [string,string])[];values:Values}){
@@ -83,7 +83,18 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
 
  return <main className="mobile-shell ess-shell">
   <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
-  <nav className="ess-nav" aria-label="Self-service sections">{tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}{workspaceAvailable?<><a href="/workspace">Leave</a><a href="/workspace?section=inbox">Inbox</a><a href="/workspace?section=approvals">Approvals</a></>:['Leave application','Inbox',...(isManager?['Manager approvals']:[])].map(label=><button key={label} type="button" disabled title="Coming in Phase 2">{label} · Coming in Phase 2</button>)}</nav>
+  <nav className="ess-nav" aria-label="Self-service sections">
+   {tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}
+   <button type="button" aria-pressed={tab==='leave'} className={tab==='leave'?'ess-nav-active':''} onClick={()=>setTab('leave')}>Leave</button>
+  </nav>
+  {tab==='leave'&&<section className="panel">
+   <h2>Leave</h2>
+   {workspaceAvailable?<div className="ess-nav" aria-label="Leave controls">
+    <a className="recovery-action" href="/workspace?section=leave">Leave application</a>
+    <a className="recovery-action" href="/workspace?section=inbox">Inbox</a>
+    <a className="recovery-action" href="/workspace?section=approvals">Approvals</a>
+   </div>:<p>Leave applications, Inbox and Approvals will be available when your account is enabled.</p>}
+  </section>}
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div className="panel"><p>Reloading will clear your unsaved contact changes.</p><button type="button" disabled={busy} onClick={()=>void reloadProfile()}>Reload latest profile</button></div>:null}
