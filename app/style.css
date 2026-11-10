@@ -70,3 +70,10 @@ label input,label select,label textarea,label button{text-transform:none}
 .credentials-toolbar label:first-child{flex:1 0 155px;max-width:260px}
 .credentials-toolbar :is(input,select,button){height:40px}
 .credentials-toolbar button{flex:0 0 auto;white-space:nowrap;padding-inline:12px;font-size:14px}
+
+.recipient-toolbar{justify-content:flex-start;align-items:center;flex-wrap:nowrap;gap:12px;margin-bottom:10px}
+.recipient-toolbar>button,.recipient-toolbar summary{white-space:nowrap}
+.recipient-toolbar details{position:relative}
+.recipient-toolbar summary{display:list-item;padding:10px 12px;border:1px solid #cfd8e1;border-radius:7px;cursor:pointer}
+.recipient-toolbar fieldset{position:absolute;z-index:2;top:100%;left:0;min-width:240px;margin:0;padding:12px;background:white;border:1px solid #cfd8e1;border-radius:7px;box-shadow:0 4px 12px #24384d26}
+@media(max-width:600px){.recipient-toolbar{flex-wrap:wrap}}
