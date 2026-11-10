@@ -8,6 +8,10 @@ export type InboxItem={id:string;kind:'leave_request'|'leave_decision'|'task'|'a
 export type EmployeeOption={id:string;name:string;employee_no:string;designation:string|null;account_active:boolean;is_manager:boolean;user_id:string|null}
 export type Opening={employee_id:string;year:number;leave_type:LeaveType;entitlement:number;taken:number;confirmed_at:string}
 export type WorkspaceData={is_hr:boolean;pilot_applicant?:boolean;employee_id:string|null;year:number;policy:Policy|null;manager:{name:string;designation:string|null;ready:boolean}|null;balances:Balance[];requests:LeaveRequest[];approvals:LeaveRequest[];inbox:InboxItem[];employees?:EmployeeOption[];links?:{manager_employee_id:string;member_employee_id:string}[];openings?:Opening[];team?:EmployeeOption[];email_queue?:{id:string;subject:string;status:string;created_at:string;pilot?:boolean}[]}
+export function employeeLeaveData(data:WorkspaceData):WorkspaceData{
+ const {pilot_applicant,employee_id,year,policy,manager,balances,requests}=data
+ return {is_hr:false,pilot_applicant,employee_id,year,policy,manager,balances,requests,approvals:[],inbox:[]}
+}
 export const titleCase=(value:string)=>value.charAt(0).toUpperCase()+value.slice(1)
 export function availableDays(balance:Balance):number|null{
  return balance.verified&&balance.entitlement!==null?balance.entitlement-(balance.opening_taken??0)-balance.approved-balance.pending:null

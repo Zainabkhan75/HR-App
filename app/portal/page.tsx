@@ -2,6 +2,7 @@ import {redirect} from 'next/navigation'
 import {serverSupabase} from '../../lib/server'
 import Portal from './view'
 import AccountStatus from './account-status'
+import {employeeLeaveData} from '../../lib/leave'
 import type {EmployeeProfile} from '../../lib/ess-profile'
 
 export default async function PortalPage(){
@@ -25,6 +26,10 @@ export default async function PortalPage(){
 
  const isManager=roles?.some(r=>r.role==='manager')??false
  const {data:team,error:teamError}=isManager?await db.rpc('my_team_summary'):{data:[],error:null}
- const {error:workspaceError}=await db.rpc('leave_workspace',{p_year:new Date().getFullYear()})
- return <Portal workspaceAvailable={!workspaceError} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
+ const date=new Intl.DateTimeFormat('en',{year:'numeric',month:'numeric',timeZone:'Asia/Karachi'}).formatToParts(new Date())
+ const year=Number(date.find(part=>part.type==='year')?.value)
+ const month=Number(date.find(part=>part.type==='month')?.value)
+ const {data:workspace}=await db.rpc('leave_workspace',{p_year:month<7?year-1:year})
+ const leaveData=workspace?.employee_id&&workspace.pilot_applicant?employeeLeaveData(workspace):undefined
+ return <Portal leaveData={leaveData} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
 }

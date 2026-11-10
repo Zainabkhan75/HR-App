@@ -5,6 +5,8 @@ import {browserDb} from '../../lib/supabase'
 import FamilyEditor from './family-editor'
 import ProfileEditor from './profile-editor'
 import Payslip from './payslip'
+import Workspace from '../workspace/view'
+import type {WorkspaceData} from '../../lib/leave'
 import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeProfile,Values} from '../../lib/ess-profile'
 import {formatMoneyField} from '../../lib/money'
@@ -18,7 +20,7 @@ function FieldList({fields,values}:{fields:readonly (readonly [string,string])[]
  return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(formatMoneyField(key,values[key]))}</dd></div>)}</dl>
 }
 
-export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,workspaceAvailable=false}:{workspaceAvailable?:boolean;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
+export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,leaveData}:{leaveData?:WorkspaceData;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
  const [profile,setProfile]=useState(initialProfile)
  const [tab,setTab]=useState<Tab>('profile')
  const [draft,setDraft]=useState(()=>contactDraft(initialProfile.contacts))
@@ -87,14 +89,9 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
    {tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}
    <button type="button" aria-pressed={tab==='leave'} className={tab==='leave'?'ess-nav-active':''} onClick={()=>setTab('leave')}>Leave</button>
   </nav>
-  {tab==='leave'&&<section className="panel">
-   <h2>Leave</h2>
-   {workspaceAvailable?<div className="ess-nav" aria-label="Leave controls">
-    <a className="recovery-action" href="/workspace?section=leave">Leave application</a>
-    <a className="recovery-action" href="/workspace?section=inbox">Inbox</a>
-    <a className="recovery-action" href="/workspace?section=approvals">Approvals</a>
-   </div>:<p>Leave applications, Inbox and Approvals will be available when your account is enabled.</p>}
-  </section>}
+  <div hidden={tab!=='leave'}>{leaveData
+   ?<Workspace initialData={leaveData} initialSection="leave" embedded/>
+   :<section className="panel"><h2>Leave application</h2><p>HR needs to enable leave applications for your account.</p></section>}</div>
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div className="panel"><p>Reloading will clear your unsaved contact changes.</p><button type="button" disabled={busy} onClick={()=>void reloadProfile()}>Reload latest profile</button></div>:null}
