@@ -25,5 +25,6 @@ export default async function PortalPage(){
 
  const isManager=roles?.some(r=>r.role==='manager')??false
  const {data:team,error:teamError}=isManager?await db.rpc('my_team_summary'):{data:[],error:null}
- return <Portal isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
+ const {error:workspaceError}=await db.rpc('leave_workspace',{p_year:new Date().getFullYear()})
+ return <Portal workspaceAvailable={!workspaceError} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
 }

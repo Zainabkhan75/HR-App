@@ -18,7 +18,7 @@ function FieldList({fields,values}:{fields:readonly (readonly [string,string])[]
  return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(formatMoneyField(key,values[key]))}</dd></div>)}</dl>
 }
 
-export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false}:{isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
+export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,workspaceAvailable=false}:{workspaceAvailable?:boolean;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
  const [profile,setProfile]=useState(initialProfile)
  const [tab,setTab]=useState<Tab>('profile')
  const [draft,setDraft]=useState(()=>contactDraft(initialProfile.contacts))
@@ -83,7 +83,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
 
  return <main className="mobile-shell ess-shell">
   <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
-  <nav className="ess-nav" aria-label="Self-service sections">{tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}{['Leave application','Inbox',...(isManager?['Manager approvals']:[])].map(label=><button key={label} type="button" disabled title="Coming in Phase 2">{label} · Coming in Phase 2</button>)}</nav>
+  <nav className="ess-nav" aria-label="Self-service sections">{tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}{workspaceAvailable?<><a href="/workspace">Leave</a><a href="/workspace?section=inbox">Inbox</a><a href="/workspace?section=approvals">Approvals</a></>:['Leave application','Inbox',...(isManager?['Manager approvals']:[])].map(label=><button key={label} type="button" disabled title="Coming in Phase 2">{label} · Coming in Phase 2</button>)}</nav>
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div className="panel"><p>Reloading will clear your unsaved contact changes.</p><button type="button" disabled={busy} onClick={()=>void reloadProfile()}>Reload latest profile</button></div>:null}
