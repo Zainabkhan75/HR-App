@@ -87,11 +87,11 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
   <nav className="ess-nav" aria-label="Self-service sections">
    {tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}
-   <button type="button" aria-pressed={tab==='leave'} className={tab==='leave'?'ess-nav-active':''} onClick={()=>setTab('leave')}>Leave</button>
+   {leaveData&&<button type="button" aria-pressed={tab==='leave'} className={tab==='leave'?'ess-nav-active':''} onClick={()=>setTab('leave')}>Leave</button>}
   </nav>
-  <div hidden={tab!=='leave'}>{leaveData
-   ?<Workspace initialData={leaveData} initialSection="leave" employee={employee} embedded/>
-   :<section className="panel"><h2>Leave application</h2><p>HR needs to enable leave applications for your account.</p></section>}</div>
+  {leaveData&&<div hidden={tab!=='leave'}>
+   <Workspace initialData={leaveData} initialSection="leave" employee={employee} embedded/>
+  </div>}
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div className="panel"><p>Reloading will clear your unsaved contact changes.</p><button type="button" disabled={busy} onClick={()=>void reloadProfile()}>Reload latest profile</button></div>:null}
