@@ -4,13 +4,16 @@ import {useState} from 'react'
 import {EMAIL_FROM,LOGIN_URL,emailPayload} from '../../lib/employee-emails'
 import type {Recipient} from '../../lib/employee-emails'
 
+const defaultSubject = 'Your Bandana HR App account is ready'
 const defaultInvitation = `Hi {{name}},
 
-Your Bandana HR App account is ready. Please open the employee portal and sign in using your registered email address and the temporary password shared with you separately. The app will ask you to set a new password at first sign-in.
+I’m resending your Bandana HR App invitation because the first email didn’t go through.
+
+Please open the employee portal at {{login_url}} and sign in using your registered email address and the temporary password shared with you separately. The app will ask you to set a new password at first sign-in.
 
 Once you’re in, please review My Profile, check your Contact Details, and complete Family & Dependants where applicable. You can also view your published payslips under My Payslip.
 
-If you have trouble signing in or notice any details that need correcting, please reply to this email with your Full Name {{name}} and employee ID, {{employee_id}}.
+If you have trouble signing in or notice any details that need correcting, please reply with your full name, {{name}}, and employee ID, {{employee_id}}.
 
 Thank you,
 Zainab Khan
@@ -20,7 +23,7 @@ type History={id:string;subject:string;status:string;recipient_count:number;crea
 const statusName=(s:string)=>({accepted:'Accepted by Resend',uncertain:'Unconfirmed',failed:'Failed',draft:'Draft',sending:'Sending'}[s]??s)
 export default function Emails({recipients,counts,adminEmail,configured,history}:{recipients:Recipient[];counts:{active:number;withoutLogin:number;withoutEmail:number};adminEmail:string;configured:boolean;history:History[]}){
  const [search,setSearch]=useState(''),[sourceFilters,setSourceFilters]=useState<string[]>([])
- const [selected,setSelected]=useState<string[]>([]),[subject,setSubject]=useState(''),[body,setBody]=useState(defaultInvitation),[campaign,setCampaign]=useState<Campaign|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[previewIndex,setPreviewIndex]=useState(0)
+ const [selected,setSelected]=useState<string[]>([]),[subject,setSubject]=useState(defaultSubject),[body,setBody]=useState(defaultInvitation),[campaign,setCampaign]=useState<Campaign|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[previewIndex,setPreviewIndex]=useState(0)
  const locked=busy||!!campaign&&['sending','uncertain'].includes(campaign.status)
  const sourceOptions=[...new Set(recipients.map(r=>r.source||r.reason).filter(Boolean))].sort()
  const query=search.trim().toLowerCase(),visibleRecipients=recipients.filter(r=>(!sourceFilters.length||sourceFilters.includes(r.source||r.reason))&&[r.employee_no,r.name,r.department,r.email??''].some(value=>value.toLowerCase().includes(query)))
