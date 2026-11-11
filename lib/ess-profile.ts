@@ -1,6 +1,6 @@
 export type Values=Record<string,string|null>
 export type EmployeeProfile={
- employee:{employee_no:string;full_name:string;designation:string|null;department:string|null;location:string|null;reports_to_text:string|null;employment_state:string;leaving_date?:string|null;source_note?:string|null}
+ employee:{employee_no:string;full_name:string;designation:string|null;department:string|null;location:string|null;reports_to_text:string|null;employment_state:string;source_note?:string|null}
  contacts:Values;personal:Values;employment:Values;rewards:Values;payroll_sep_2026?:Values
  core_updated_at:string;profile_updated_at:string|null
 }
@@ -31,7 +31,7 @@ export const contactPatch=(values:Values,draft:Record<string,string>):Record<str
 )
 
 export const editableProfileSections=[
- {title:'Core Information',fields:[['full_name','Full Name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports To (Designation)'],['line_manager_employee_no','Line Manager Name'],['leaving_date','Leaving Date'],['source_note','Source / Verification Note']]},
+ {title:'Core Information',fields:[['full_name','Full Name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports To (Designation)'],['line_manager_employee_no','Line Manager Name'],['source_note','Source / Verification Note']]},
  {title:'Personal Information',fields:[['cnic_passport','CNIC / Passport'],['email','Work Email'],...backgroundSections[0].fields]},
  ...backgroundSections.slice(1),
  {title:'Employment Information',fields:employmentFields},
