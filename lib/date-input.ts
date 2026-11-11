@@ -27,3 +27,10 @@ export function parseShortDate(value:string,referenceYear?:number){
  const iso=fullYear+'-'+parts[2]+'-'+parts[1]
  return isIsoDate(iso)?iso:null
 }
+
+export function parseDateInput(value:string,referenceYear?:number){
+ const full=value.match(/^(\d{2})\/(\d{2})\/((?:19|20)\d{2})$/)
+ if(!full)return parseShortDate(value,referenceYear)
+ const iso=`${full[3]}-${full[2]}-${full[1]}`
+ return isIsoDate(iso)?iso:null
+}

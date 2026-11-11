@@ -49,7 +49,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
    setError('Choose a line manager with the selected designation.');return
   }
   if(Object.entries(patch).some(([key,value])=>isProfileDateField(key)&&value&&!isIsoDate(value))){
-   setError('Enter a valid date in DD/MM/YY format, for example 27/10/26.');return
+   setError('Enter a valid date in DD/MM/YY or DD/MM/YYYY, for example 27/10/2026.');return
   }
   if(patch.probation!==undefined&&!validProbation(patch.probation)){
    setError('Probation must be a whole number from 0 to 6 months.');return
@@ -59,7 +59,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
    const {data,error:saveError}=await browserDb().rpc('update_my_employee_profile',{p_patch:patch,p_expected_core_updated_at:base.core_updated_at,p_expected_profile_updated_at:base.profile_updated_at})
    if(saveError||!data){
     setConflict(saveError?.code==='40001'||!data)
-    setError(saveError?.code==='40001'?'Your profile changed elsewhere. Reload before saving.':saveError?.code==='22023'?'Check the dropdown selections, dates (DD/MM/YY), probation (0–6 months), name and work email.':'Could not confirm the save. Reload before trying again.')
+    setError(saveError?.code==='40001'?'Your profile changed elsewhere. Reload before saving.':saveError?.code==='22023'?'Check the dropdown selections, dates, probation (0–6 months), name and work email.':'Could not confirm the save. Reload before trying again.')
     return
    }
    populate(data as EmployeeProfile);setNotice('Profile details saved.')
