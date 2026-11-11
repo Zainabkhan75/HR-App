@@ -1,3 +1,5 @@
+import {isIsoDate,parseDateInput} from './date-input'
+
 export const qualificationLevels=['Matric','Intermediate','Diploma','Bachelor’s','Master’s','Other'] as const
 export const dropdownKeys=['department','location','reports_to_text','employment_type','work_location_mobility'] as const
 export type DropdownKey=typeof dropdownKeys[number]
@@ -36,4 +38,14 @@ export function reportingTitle(value:string):string{
  const pieces=clean.split(' - ')
  if(pieces.length<2)return clean
  return clean.startsWith('Store Manager,')?pieces[0].trim():pieces.slice(1).join(' - ').trim()
+}
+export function confirmationDate(joiningDate:string,probation:string):string{
+ const normalized=joiningDate.trim().replace(/^(\d{1,2})\/(\d{1,2})\//,(_,day:string,month:string)=>day.padStart(2,'0')+'/'+month.padStart(2,'0')+'/')
+ const joining=isIsoDate(normalized)?normalized:parseDateInput(normalized)
+ if(!joining||!/^[0-6]$/.test(probation))return ''
+ const [year,month,day]=joining.split('-').map(Number)
+ const target=new Date(Date.UTC(year,month-1+Number(probation),1))
+ const lastDay=new Date(Date.UTC(target.getUTCFullYear(),target.getUTCMonth()+1,0)).getUTCDate()
+ target.setUTCDate(Math.min(day,lastDay))
+ return target.toISOString().slice(0,10)
 }

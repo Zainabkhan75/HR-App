@@ -5,9 +5,9 @@ import {browserDb} from '../../lib/supabase'
 import {editableProfileSections,profileDraft,profilePatch} from '../../lib/ess-profile'
 import DateInput from '../date-input'
 import DesignationSelect from '../designation-select'
-import {isIsoDate,isProfileDateField} from '../../lib/date-input'
+import {displayShortDate,isIsoDate,isProfileDateField} from '../../lib/date-input'
 import type {EmployeeProfile} from '../../lib/ess-profile'
-import {isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels,designationTitles,departmentNames} from '../../lib/profile-inputs'
+import {confirmationDate,isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels,designationTitles,departmentNames} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 
 const dateError='Enter a valid date in DD/MM/YY or DD/MM/YYYY.'
@@ -15,6 +15,7 @@ const managerError='Select an active line manager who matches the designation ch
 const probationError='Enter a whole number from 0 to 6.'
 const nameError='Enter your full name before saving.'
 const emailError='Enter a valid work email address, such as name@company.com.'
+const paymentMethods=['Bank Account','Other']
 const serverFieldErrors:Record<string,[string,string]>={
  'Full name is required':['full_name',nameError],
  'Enter a valid work email address':['email',emailError],
@@ -50,6 +51,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
  }
  useEffect(()=>{void loadOptions()},[])
  const patch=profilePatch(base,draft),dirty=Object.keys(patch).length>0
+ const calculatedConfirmationDate=confirmationDate(draft.date_of_joining,draft.probation)
  const reportingTitles=options?.line_managers?options.reports_to_text:[]
  const managers=(options?.line_managers??[]).filter(manager=>manager.designation===draft.reports_to_text)
  const selectedManager=managers.some(manager=>manager.employee_no===draft.line_manager_employee_no)
@@ -95,7 +97,9 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   if(Object.keys(errors).length){showFieldErrors(errors);return}
   setBusy(true)
   try{
-   const {data,error:saveError}=await browserDb().rpc('update_my_employee_profile',{p_patch:patch,p_expected_core_updated_at:base.core_updated_at,p_expected_profile_updated_at:base.profile_updated_at})
+   const changes=patch.date_of_joining!==undefined||patch.probation!==undefined
+    ?{...patch,offer_date:calculatedConfirmationDate}:patch
+   const {data,error:saveError}=await browserDb().rpc('update_my_employee_profile',{p_patch:changes,p_expected_core_updated_at:base.core_updated_at,p_expected_profile_updated_at:base.profile_updated_at})
    if(saveError||!data){
     if(saveError?.code==='40001'){
      setConflict(true)
@@ -123,8 +127,15 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
    setFieldErrors(current=>Object.fromEntries(Object.entries(current).filter(([field])=>field!==key&&!(key==='reports_to_text'&&field==='line_manager_employee_no')&&!(key==='department'&&field==='designation')&&!(key==='employment_type'&&field==='probation'))))
   }}>
    {editableProfileSections.map(section=><div key={section.title}><h3>{section.title}</h3><div className="family-fields">{section.fields.map(([key,label])=><label key={key} data-profile-field={key} data-profile-error={fieldErrors[key]?true:undefined} className={key==="permanent_address"?"field-label-exact":undefined}>
-    {key==='probation'?'Probation (months)':label}
-    {key==='reports_to_text'?<>
+    {key==='probation'?'Probation (months)':key==='salary_transfer_method'?'Method of Payment':label}
+    {key==='offer_date'?<>
+     <input readOnly value={displayShortDate(calculatedConfirmationDate)} placeholder="Calculated from joining date and probation"/>
+     {!calculatedConfirmationDate&&<span className="field-hint">Enter Date of Joining and Probation (months) to calculate this date.</span>}
+    </>:key==='salary_transfer_method'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
+     <option value="">Select a payment method</option>
+     {draft[key]&&!paymentMethods.includes(draft[key])&&<option value={draft[key]} disabled>{draft[key]} (previously recorded)</option>}
+     {paymentMethods.map(method=><option key={method} value={method}>{method}</option>)}
+    </select>:key==='reports_to_text'?<>
      <select value={reportingTitles.includes(draft[key])?draft[key]:''} disabled={busy||!options?.line_managers} onChange={event=>{
       const designation=event.target.value
       const choices=options?.line_managers?.filter(manager=>manager.designation===designation)??[]
