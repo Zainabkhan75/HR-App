@@ -7,7 +7,7 @@ import DateInput from '../date-input'
 import DesignationSelect from '../designation-select'
 import {displayShortDate,isIsoDate,isProfileDateField} from '../../lib/date-input'
 import type {EmployeeProfile} from '../../lib/ess-profile'
-import {confirmationDate,isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels,designationTitles,departmentNames} from '../../lib/profile-inputs'
+import {confirmationDate,paymentMethods,isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels,designationTitles,departmentNames} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 
 const dateError='Enter a valid date in DD/MM/YY or DD/MM/YYYY.'
@@ -15,7 +15,6 @@ const managerError='Select an active line manager who matches the designation ch
 const probationError='Enter a whole number from 0 to 6.'
 const nameError='Enter your full name before saving.'
 const emailError='Enter a valid work email address, such as name@company.com.'
-const paymentMethods=['Bank Account','Other']
 const serverFieldErrors:Record<string,[string,string]>={
  'Full name is required':['full_name',nameError],
  'Enter a valid work email address':['email',emailError],
