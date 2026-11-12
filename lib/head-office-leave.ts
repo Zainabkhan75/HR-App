@@ -89,3 +89,9 @@ export function leaveApprovalRoute(
   if (ceoId) stages.push({ role: 'ceo', approverId: ceoId })
   return stages
 }
+
+// Fiscal years run 1 July to 30 June and are named by both years, e.g. FY 26-27.
+export function fyLabel(year: number): string {
+  const two = (value: number) => String(value % 100).padStart(2, '0')
+  return 'FY ' + two(year) + '-' + two(year + 1)
+}

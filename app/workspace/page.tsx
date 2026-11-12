@@ -10,15 +10,14 @@ export default async function WorkspacePage({searchParams}:{searchParams:Promise
  const dateParts=new Intl.DateTimeFormat('en',{year:'numeric',month:'numeric',timeZone:'Asia/Karachi'}).formatToParts(new Date())
  const thisYear=Number(dateParts.find(part=>part.type==='year')?.value)
  const month=Number(dateParts.find(part=>part.type==='month')?.value)
- const year=Number(params.year)||thisYear
- const selectedYear=Number.isInteger(year)&&year>=2020&&year<=2100?year:thisYear
+ // Leave years run 1 July to 30 June for everyone and are identified by the year in which they start.
+ const fiscalYear=month<7?thisYear-1:thisYear
+ const year=Number(params.year)||fiscalYear
+ const selectedYear=Number.isInteger(year)&&year>=2020&&year<=2100?year:fiscalYear
  const next='/workspace?section='+section+(params.year?'&year='+selectedYear:'')+(request?'&request='+request:'')
  const db=await serverSupabase();const {data:{user}}=await db.auth.getUser()
  if(!user)redirect('/login?next='+encodeURIComponent(next))
- let {data,error}=await db.rpc('leave_workspace',{p_year:selectedYear})
- if(!params.year&&data?.pilot_applicant&&month<7){
-  ({data,error}=await db.rpc('leave_workspace',{p_year:thisYear-1}))
- }
+ const {data,error}=await db.rpc('leave_workspace',{p_year:selectedYear})
  if(section==='leave-preview'&&data?.is_hr)return <main className="mobile-shell"><LeavePreview/><a href="/workspace?section=settings">Back to leave settings</a></main>
  if(error||!data)return <main className="mobile-shell"><h1>Leave & Inbox unavailable</h1><p>{error?.code==='42501'?'An active employee account with password setup complete, or HR administrator access, is required.':'We could not load leave details. Please try again.'}</p><a href="/portal">Back to employee portal</a></main>
  return <>
