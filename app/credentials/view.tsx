@@ -8,9 +8,26 @@ export default function Credentials(){
  const [rows,setRows]=useState<Row[]>([]),[generated,setGenerated]=useState<Record<string,string>>({}),[selected,setSelected]=useState<string[]>([]),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
  const [status,setStatus]=useState<'all'|Row['employmentStatus']>('all')
  const [emailEmployee,setEmailEmployee]=useState('')
+ const [employeeQuery,setEmployeeQuery]=useState('')
+ const [employeeListOpen,setEmployeeListOpen]=useState(false)
+ const [activeEmployeeIndex,setActiveEmployeeIndex]=useState(0)
+ const employeeMatches=rows.filter(row=>row.linked&&row.employmentStatus==='active'&&
+  (row.name+' '+row.employeeId+' '+row.username).toLowerCase().includes(employeeQuery.trim().toLowerCase()))
+  .sort((a,b)=>a.name.localeCompare(b.name))
+ const employeeListVisible=employeeListOpen&&!busy
+ function chooseEmailEmployee(row:Row){
+  setEmailEmployee(row.employeeId)
+  setEmployeeQuery(row.name)
+  setNewEmail('')
+  setEmployeeListOpen(false)
+ }
+ useEffect(()=>{
+  if(employeeListVisible)document.getElementById('email-employee-option-'+activeEmployeeIndex)?.scrollIntoView({block:'nearest'})
+ },[employeeListVisible,activeEmployeeIndex])
  const [newEmail,setNewEmail]=useState('')
  async function requestEmailChange(event:React.FormEvent){
   event.preventDefault()
+  if(!emailEmployee)return
   setBusy(true);setError('');setNotice('')
   try{
    const response=await fetch('/api/admin/credentials/email',{
@@ -52,12 +69,43 @@ export default function Credentials(){
  <section className="panel"><h2>Change sign-in email</h2>
   <p>The employee confirms the change from both email addresses. They keep their existing account and password.</p>
   <form className="bar" onSubmit={requestEmailChange}>
-   <label>Employee<select required value={emailEmployee} disabled={busy} onChange={event=>setEmailEmployee(event.target.value)}>
-    <option value="">Select an employee</option>
-    {rows.filter(row=>row.linked&&row.employmentStatus==='active').map(row=><option key={row.employeeId} value={row.employeeId}>{row.employeeId} · {row.name} · {row.username}</option>)}
-   </select></label>
+   <div style={{position:'relative',flex:'1 1 250px'}}>
+    <label>Employee<input role="combobox" aria-autocomplete="list"
+     aria-expanded={employeeListVisible} aria-controls="email-employee-options"
+     aria-activedescendant={employeeListVisible&&employeeMatches[activeEmployeeIndex]?'email-employee-option-'+activeEmployeeIndex:undefined}
+     autoComplete="off" placeholder="Type a name, employee ID or email"
+     value={employeeQuery} disabled={busy}
+     onFocus={()=>{setEmployeeListOpen(true);setActiveEmployeeIndex(0)}}
+     onBlur={()=>setEmployeeListOpen(false)}
+     onChange={event=>{setEmployeeQuery(event.target.value);setEmailEmployee('');setNewEmail('');setActiveEmployeeIndex(0);setEmployeeListOpen(true)}}
+     onKeyDown={event=>{
+      if(event.key==='Escape'){setEmployeeListOpen(false);return}
+      if(event.key==='ArrowDown'||event.key==='ArrowUp'){
+       event.preventDefault()
+       setEmployeeListOpen(true)
+       setActiveEmployeeIndex(index=>employeeListVisible
+        ?Math.max(0,Math.min(employeeMatches.length-1,index+(event.key==='ArrowDown'?1:-1)))
+        :event.key==='ArrowUp'?Math.max(0,employeeMatches.length-1):0)
+      }
+      if(event.key==='Enter'&&employeeListVisible){
+       event.preventDefault()
+       const match=employeeMatches[activeEmployeeIndex]
+       if(match)chooseEmailEmployee(match)
+      }
+     }}/></label>
+    <div hidden={!employeeListVisible} style={{position:'absolute',top:'100%',left:0,right:0,zIndex:5,background:'white',border:'1px solid #c8d5e4',borderRadius:6}}>
+     <ul id="email-employee-options" role="listbox" aria-label="Matching employees" style={{maxHeight:240,overflowY:'auto',margin:0,padding:0,listStyle:'none'}}>
+      {employeeMatches.map((row,index)=><li key={row.employeeId} id={'email-employee-option-'+index} role="option" aria-selected={index===activeEmployeeIndex}
+       style={{padding:'8px 10px',cursor:'pointer',overflowWrap:'anywhere',background:index===activeEmployeeIndex?'#e5eef8':undefined}}
+       onMouseDown={event=>event.preventDefault()} onClick={()=>chooseEmailEmployee(row)}>
+       <strong>{row.name}</strong><br/>{row.employeeId} · {row.username}
+      </li>)}
+     </ul>
+     {!employeeMatches.length&&<p role="status" style={{padding:'0 10px'}}>No matching employees.</p>}
+    </div>
+   </div>
    <label>New sign-in email<input required type="email" maxLength={254} value={newEmail} disabled={busy} onChange={event=>setNewEmail(event.target.value)}/></label>
-   <button disabled={busy}>Send confirmation emails</button>
+   <button disabled={busy||!emailEmployee}>Send confirmation emails</button>
   </form>
  </section>
  <section className="panel"><p className="notice">Existing passwords cannot be displayed. Generating a temporary password replaces that employee’s current password and requires them to change it at next sign-in. Passwords appear only in this session.</p>
