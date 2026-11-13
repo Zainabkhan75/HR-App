@@ -21,9 +21,10 @@ Human Resources`
 type Campaign={id:string;subject:string;body:string;reply_to:string;recipients:Recipient[];status:string;error_message:string|null}
 type History={id:string;subject:string;status:string;recipient_count:number;created_at:string;error_message:string|null}
 const statusName=(s:string)=>({accepted:'Accepted by Resend',uncertain:'Unconfirmed',failed:'Failed',draft:'Draft',sending:'Sending'}[s]??s)
-export default function Emails({recipients,counts,adminEmail,configured,history}:{recipients:Recipient[];counts:{active:number;withoutLogin:number;withoutEmail:number};adminEmail:string;configured:boolean;history:History[]}){
- const [search,setSearch]=useState(''),[sourceFilters,setSourceFilters]=useState<string[]>([])
- const [selected,setSelected]=useState<string[]>([]),[subject,setSubject]=useState(defaultSubject),[body,setBody]=useState(defaultInvitation),[campaign,setCampaign]=useState<Campaign|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[previewIndex,setPreviewIndex]=useState(0)
+export default function Emails({recipients,counts,adminEmail,configured,history,invitation,invitationUnavailable}:{recipients:Recipient[];counts:{active:number;withoutLogin:number;withoutEmail:number};adminEmail:string;configured:boolean;history:History[];invitation?:{id:string;employeeNo:string;loginEmail:string};invitationUnavailable?:boolean}){
+ const [search,setSearch]=useState(invitation?.employeeNo??''),[sourceFilters,setSourceFilters]=useState<string[]>([])
+ const [selected,setSelected]=useState<string[]>(invitation?[invitation.id]:[]),[subject,setSubject]=useState(invitation?defaultSubject+" | "+LOGIN_URL:defaultSubject),[body,setBody]=useState(invitation?defaultInvitation.replace("Your Bandana HR App login is ready.","Your Bandana HR App login is ready.\n\nEmployee ID: {{employee_id}}\nSign-in email: "+invitation.loginEmail):defaultInvitation),[campaign,setCampaign]=useState<Campaign|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[previewIndex,setPreviewIndex]=useState(0)
+
  const locked=busy||!!campaign&&['sending','uncertain'].includes(campaign.status)
  const sourceOptions=[...new Set(recipients.map(r=>r.source||r.reason).filter(Boolean))].sort()
  const query=search.trim().toLowerCase(),visibleRecipients=recipients.filter(r=>(!sourceFilters.length||sourceFilters.includes(r.source||r.reason))&&[r.employee_no,r.name,r.department,r.email??''].some(value=>value.toLowerCase().includes(query)))
@@ -43,6 +44,7 @@ export default function Emails({recipients,counts,adminEmail,configured,history}
  function change(){setCampaign(null);setError('')}
  const sample=campaign?emailPayload(campaign)[Math.min(previewIndex,campaign.recipients.length-1)]:null
  const recipientsSort=useTableSort(),historySort=useTableSort()
+ if(invitationUnavailable)return <main className="shell"><h1>Invitation unavailable</h1><p>Check the employee’s active login and unique email address.</p><a href="/emails">Back to Email Employees</a></main>
  return <main className="shell"><header><div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Email employees</h1><p>Review recipients and send an individual email to each person.</p></div><nav className="head-actions"><a href="/employees">Employee directory</a><a href="/reports">Reports</a><a href="/activity">Activity</a></nav></header>
  <section className="panel"><h2>Sending connection</h2><p>From: <strong>{EMAIL_FROM}</strong><br/>Replies go to: {adminEmail}</p>{configured?<p className="notice">API key configured. Send a test to your own address before emailing employees.</p>:<p className="notice">Sending is waiting for the Resend API key. In Vercel → hr-app → Settings → Environment Variables, add RESEND_API_KEY for Production, then redeploy. Do not paste the key into chat. You can prepare previews now.</p>}<p className="muted">“Accepted by Resend” confirms submission to the email service. It does not confirm delivery to an inbox.</p></section>
  <section className="panel"><h2>1. Choose recipients</h2><p>{counts.active} active employees · {counts.withoutLogin} with email but no login · {counts.withoutEmail} without a usable email</p><p className="muted">Uses a unique work email, or a unique personal email when needed. Shared, missing and invalid addresses are excluded.</p>
