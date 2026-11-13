@@ -10,7 +10,7 @@ const defaultInvitation = `Hi {{name}},
 
 Your Bandana HR App login is ready.
 
-Open the link above and sign in using your registered email address and the temporary password shared with you separately. The app will ask you to set a new password at first sign-in.
+Open the link above and sign in using your registered email address and the password Pakistan1234. The app will ask you to set a new password at first sign-in.
 
 Once you’re in, please review My Profile, check your Contact Details, and complete Family & Dependants where applicable. You can also view your published payslips under My Payslip.
 
