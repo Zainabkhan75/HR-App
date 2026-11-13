@@ -20,7 +20,6 @@ export default function Directory({email}:{email:string}) {
  const [credentials,setCredentials]=useState<Credentials|null>(null),[accounts,setAccounts]=useState<Record<string,string>>({})
  const [rows,setRows]=useState<Employee[]>([]),[q,setQ]=useState(''),[filter,setFilter]=useState('all'),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('')
  const [selected,setSelected]=useState<Employee|null>(null),[adding,setAdding]=useState(false),[tab,setTab]=useState('core'),[values,setValues]=useState<Record<string,string>>({}),[detail,setDetail]=useState<Detail>({profile:{},payroll_sep_2026:{}}),[busy,setBusy]=useState(false)
- if(invitationUnavailable)return <main className="shell"><h1>Invitation unavailable</h1><p>Check the employee’s active login and unique email address.</p><a href="/emails">Back to Email Employees</a></main>
  const [originalProfile,setOriginalProfile]=useState<Detail['profile']>({})
  const [detailsReady,setDetailsReady]=useState(false)
  const [profileOptions,setProfileOptions]=useState<ProfileOptions|null>(null)
