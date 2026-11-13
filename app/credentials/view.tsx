@@ -7,6 +7,22 @@ type Generated={employeeId:string;name:string;username:string;password:string}
 export default function Credentials(){
  const [rows,setRows]=useState<Row[]>([]),[generated,setGenerated]=useState<Record<string,string>>({}),[selected,setSelected]=useState<string[]>([]),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
  const [status,setStatus]=useState<'all'|Row['employmentStatus']>('all')
+ const [emailEmployee,setEmailEmployee]=useState('')
+ const [newEmail,setNewEmail]=useState('')
+ async function requestEmailChange(event:React.FormEvent){
+  event.preventDefault()
+  setBusy(true);setError('');setNotice('')
+  try{
+   const response=await fetch('/api/admin/credentials/email',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({employeeId:emailEmployee,email:newEmail}),
+   })
+   const {message}=await response.json()
+   if(!response.ok)throw Error(message)
+   setNotice(message);setNewEmail('')
+  }catch(error){setError(error instanceof Error?error.message:'Email change request failed.')}
+  finally{setBusy(false)}
+ }
  useEffect(()=>{fetch('/api/admin/credentials',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Could not load employee accounts');return r.json()}).then(d=>setRows(d.rows)).catch(e=>setError(e.message))},[])
  const credentialsSort=useTableSort()
  const shown=useMemo(()=>rows.filter(r=>(status==='all'||r.employmentStatus===status)&&(r.employeeId+' '+r.name+' '+r.username).toLowerCase().includes(search.toLowerCase().trim())),[rows,search,status])
@@ -33,6 +49,17 @@ export default function Credentials(){
   const anchor=document.createElement('a');anchor.href=url;anchor.download=`Bandana_Employee_Credentials_${new Date().toISOString().slice(0,10)}.csv`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
  }
  return <main className="shell"><header><div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Employee credentials</h1><p>Linked usernames and newly generated temporary passwords</p></div><nav className="head-actions"><a href="/employees">Employee directory</a><a href="/reports">Reports</a></nav></header>
+ <section className="panel"><h2>Change sign-in email</h2>
+  <p>The employee confirms the change from both email addresses. They keep their existing account and password.</p>
+  <form className="bar" onSubmit={requestEmailChange}>
+   <label>Employee<select required value={emailEmployee} disabled={busy} onChange={event=>setEmailEmployee(event.target.value)}>
+    <option value="">Select an employee</option>
+    {rows.filter(row=>row.linked&&row.employmentStatus==='active').map(row=><option key={row.employeeId} value={row.employeeId}>{row.employeeId} · {row.name} · {row.username}</option>)}
+   </select></label>
+   <label>New sign-in email<input required type="email" maxLength={254} value={newEmail} disabled={busy} onChange={event=>setNewEmail(event.target.value)}/></label>
+   <button disabled={busy}>Send confirmation emails</button>
+  </form>
+ </section>
  <section className="panel"><p className="notice">Existing passwords cannot be displayed. Generating a temporary password replaces that employee’s current password and requires them to change it at next sign-in. Passwords appear only in this session.</p>
  <div className="bar credentials-toolbar"><label>Find employee<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, name or username"/></label><label>Employment Status<select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value as typeof status);setSelected([])}}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><button className="secondary" disabled={busy||!shown.some(r=>r.linked)} onClick={()=>setSelected(shown.filter(r=>r.linked).map(r=>r.employeeId))}>Select all linked shown</button><button disabled={busy||!selected.length} onClick={generate}>Generate for selected ({selected.length})</button><button className="secondary" onClick={download}>Download table CSV</button></div>
  {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
