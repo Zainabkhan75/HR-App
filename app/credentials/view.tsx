@@ -2,7 +2,7 @@
 import {useTableSort} from '../sortable-table'
 import {useEffect,useMemo,useState} from 'react'
 
-type Row={employeeId:string;name:string;username:string;linked:boolean;emailStatus:string;designation:string|null;employmentStatus:'active'|'inactive'}
+type Row={employeeId:string;name:string;username:string;linked:boolean;isAdmin:boolean;emailStatus:string;designation:string|null;employmentStatus:'active'|'inactive'}
 type Generated={employeeId:string;name:string;username:string;password:string}
 export default function Credentials(){
  const [rows,setRows]=useState<Row[]>([]),[generated,setGenerated]=useState<Record<string,string>>({}),[selected,setSelected]=useState<string[]>([]),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
@@ -11,7 +11,7 @@ export default function Credentials(){
  const [employeeQuery,setEmployeeQuery]=useState('')
  const [employeeListOpen,setEmployeeListOpen]=useState(false)
  const [activeEmployeeIndex,setActiveEmployeeIndex]=useState(0)
- const employeeMatches=rows.filter(row=>row.linked&&row.employmentStatus==='active'&&
+ const employeeMatches=rows.filter(row=>row.linked&&!row.isAdmin&&row.employmentStatus==='active'&&
   (row.name+' '+row.employeeId+' '+row.username).toLowerCase().includes(employeeQuery.trim().toLowerCase()))
   .sort((a,b)=>a.name.localeCompare(b.name))
  const employeeListVisible=employeeListOpen&&!busy
@@ -67,7 +67,7 @@ export default function Credentials(){
  }
  return <main className="shell"><header><div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Employee credentials</h1><p>Linked usernames and newly generated temporary passwords</p></div><nav className="head-actions"><a href="/employees">Employee directory</a><a href="/reports">Reports</a></nav></header>
  <section className="panel"><h2>Change sign-in email</h2>
-  <p>The employee confirms the change from both email addresses. They keep their existing account and password.</p>
+  <p>Available for active employee logins. HR Admin sign-in changes use administrator recovery. The employee confirms from both email addresses and keeps their existing password.</p>
   <form className="bar" onSubmit={requestEmailChange}>
    <div style={{position:'relative',flex:'1 1 250px'}}>
     <label>Employee<input role="combobox" aria-autocomplete="list"
