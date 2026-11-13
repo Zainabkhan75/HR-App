@@ -31,7 +31,24 @@ export default function Directory({email}:{email:string}) {
  useEffect(()=>{void refresh();void loadDesignations()},[])
  async function refreshAccounts(){const {data}=await browserDb().from('employee_accounts').select('employee_id,username');setAccounts(Object.fromEntries((data??[]).map(a=>[a.employee_id,a.username])))}
  useEffect(()=>{void refreshAccounts()},[rows])
- async function createLogin(employeeId:string){setBusy(true);setError('');try{const response=await fetch('/api/admin/employees/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_id:employeeId})});const result=await response.json();if(!response.ok)throw Error(result.error??'Login creation failed');setCredentials(result);await refreshAccounts();return true}catch(e){setError(e instanceof Error?e.message:'Login creation failed');return false}finally{setBusy(false)}}
+ async function createLogin(employeeId:string){
+  setBusy(true);setError('')
+  try{
+   const submit=async(confirmedEmail?:string)=>{
+    const response=await fetch('/api/admin/employees/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_id:employeeId,confirmed_email:confirmedEmail})})
+    const result=await response.json()
+    if(!response.ok)throw Error(result.error??'Login creation failed')
+    return result
+   }
+   const {proposal}=await submit()
+   if(!proposal?.email)throw Error(proposal?.reason??'No sign-in address is available')
+   if(!window.confirm('Create login with '+proposal.email+'?\\n'+proposal.reason))return false
+   setCredentials(await submit(proposal.email))
+   await refreshAccounts()
+   return true
+  }catch(error){setError(error instanceof Error?error.message:'Login creation failed');return false}
+  finally{setBusy(false)}
+ }
  const employeesByNumber=useMemo(()=>new Map(rows.map(row=>[row.employee_no,row])),[rows])
  const reportingTitles=useMemo(()=>new Map([...(designations??[]),'BOD','COO'].map(title=>[title.toLowerCase(),title])),[designations])
  function reportingDesignation(row:Employee){
@@ -91,6 +108,7 @@ export default function Directory({email}:{email:string}) {
  <section className="panel"><div className="bar"><input aria-label="Search employees" placeholder="Search by name, ID, designation, department…" value={q} onChange={e=>setQ(e.target.value)}/><select aria-label="Employment status" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select><button onClick={()=>void edit(null)}>+ Add employee</button></div>{error&&<p className="error" role="alert">{error}</p>}{notice&&<p role="status" className="notice">{notice}</p>}{loading?<p>Loading employees…</p>:<><p className="muted">Showing {matches.length} of {rows.length} records</p><div className="tablewrap"><table><thead><tr>{directorySort.heading('employee_no', 'Employee ID')}{directorySort.heading('full_name', 'Name')}{directorySort.heading('designation', 'Designation')}{directorySort.heading('department', 'Department')}{directorySort.heading('reports_to_designation', 'Reports To (Designation)')}{directorySort.heading('employment_state', 'Status')}{directorySort.heading('leaving_date', 'Leaving date')}<th>Actions</th></tr></thead><tbody>{directorySort.sortRows(matches,(row,column)=>column==='reports_to_designation'?reportingDesignation(row):row[column as Exclude<keyof Employee,'employee_details'>]).map(x=><tr key={x.id}><td className="mono">{x.employee_no}</td><td><strong>{x.full_name}</strong></td><td>{x.designation||'—'}</td><td>{x.department||'—'}</td><td>{reportingDesignation(x)||'—'}</td><td><span className={'status '+x.employment_state}>{x.employment_state}</span></td><td>{displayShortDate(x.leaving_date)||"—"}</td><td className="actions"><button className="link inactive-disabled" disabled={x.employment_state==='inactive'} title={x.employment_state==='inactive'?'Reactivate employee before editing':undefined} onClick={()=>void edit(x)}>Edit</button>{accounts[x.id]?<span className="muted">Login ready</span>:<button className="link inactive-disabled" disabled={busy||x.employment_state==='inactive'} title={x.employment_state==='inactive'?'Reactivate employee before creating a login':undefined} onClick={()=>void createLogin(x.id)}>Create login</button>}<button className="link" onClick={()=>{setAction({type:x.employment_state==='inactive'?'reactivate':'deactivate',row:x});setReason('');setConfirm('');setLeavingDate('')}}>{x.employment_state==='inactive'?'Reactivate':'Deactivate'}</button><button className="link danger" onClick={()=>{setAction({type:'delete',row:x});setReason('');setConfirm('');setLeavingDate('')}}>Delete</button></td></tr>)}</tbody></table></div></>}</section>
  {(selected||adding)&&<div className="overlay"><div className="dialog wide" role="dialog" aria-modal="true" aria-label={selected?'Edit employee':'Add employee'}><div className="bar"><h2>{selected?'Employee Profile':'New employee'}</h2><button className="secondary" type="button" onClick={close}>Close</button></div>{selected?<p className="mono">{selected.employee_no} · {selected.employment_state}</p>:<p className="muted">A new employee number is assigned on save.</p>}
  {profileEmailDiffers&&<p className="notice">The sign-in email on file is <strong>{signInEmail}</strong>. It differs from the work and personal emails shown in this profile. Review the account in <a href="/credentials">Credentials</a>.</p>}
+ {tab==='core'&&<label><input type="checkbox" checked={detail.profile.shared_work_mailbox==='true'} disabled={busy||!detailsReady} onChange={event=>editField('shared_work_mailbox',String(event.target.checked),'profile')}/> Shared work mailbox</label>}
  <div className="bar"><button type="button" className="secondary" aria-expanded={showDesignationEditor} onClick={()=>setShowDesignationEditor(open=>!open)}>{showDesignationEditor?'Close designation editor':'Add new designation'}</button></div>
  {showDesignationEditor&&<div className="panel">
   <label>New designation<input value={newDesignation} maxLength={120} disabled={designationBusy} onChange={event=>setNewDesignation(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();void addDesignation()}}}/></label>

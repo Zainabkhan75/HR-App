@@ -2,6 +2,7 @@ import {NextResponse} from 'next/server'
 import {sameOriginRequest} from '../../../../../lib/signin-server'
 import {uploadContext,serviceDb} from '../../../../../lib/bulk-upload-server'
 import {provisionEmployeeLogin} from '../../../../../lib/employee-login-server'
+import {validLoginEmail} from '../../../../../lib/login-email'
 export const dynamic='force-dynamic'
 const headers={'Cache-Control':'private, no-store','Vary':'Cookie'}
 export async function POST(request:Request){
@@ -11,7 +12,14 @@ export async function POST(request:Request){
  try{
   const input=await request.json()
   if(typeof input.employee_id!=='string'||!/^[0-9a-f-]{36}$/i.test(input.employee_id))return NextResponse.json({error:'Select a valid employee'},{status:400,headers})
-  const result=await provisionEmployeeLogin(serviceDb(),input.employee_id,ctx.user.id)
+  const db=serviceDb()
+  if(typeof input.confirmed_email!=='string'){
+   const {data,error}=await db.rpc('propose_employee_login_email',{p_employee:input.employee_id})
+   if(error)throw Error('Could not check the proposed email')
+   return NextResponse.json({proposal:data},{headers})
+  }
+  if(!validLoginEmail(input.confirmed_email))throw Error('Confirm a valid proposed email')
+  const result=await provisionEmployeeLogin(db,input.employee_id,ctx.user.id,input.confirmed_email)
   return NextResponse.json(result,{headers})
  }catch(error){return NextResponse.json({error:error instanceof Error?error.message:'Login creation failed'},{status:409,headers})}
 }

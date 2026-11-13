@@ -1,6 +1,8 @@
 type Db=any
-export async function provisionEmployeeLogin(db:Db,employeeId:string,actorId:string){
- const {data:p,error:prepare}=await db.rpc('prepare_employee_login',{p_employee:employeeId,p_actor:actorId})
+export async function provisionEmployeeLogin(db:Db,employeeId:string,actorId:string,confirmedEmail?:string){
+ const {data:p,error:prepare}=confirmedEmail!==undefined
+  ?await db.rpc('prepare_confirmed_employee_login',{p_employee:employeeId,p_actor:actorId,p_confirmed:confirmedEmail})
+  :await db.rpc('prepare_employee_login',{p_employee:employeeId,p_actor:actorId})
  if(prepare||!p)throw Error(prepare?.message??'Login preparation failed')
  let created:string|null=null,linked=false
  try{
