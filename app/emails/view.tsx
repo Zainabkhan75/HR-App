@@ -1,15 +1,16 @@
 'use client'
 import {useTableSort} from '../sortable-table'
-import {useState} from 'react'
-import {EMAIL_FROM,LOGIN_URL,emailPayload} from '../../lib/employee-emails'
+import {useRef,useState} from 'react'
+import {EMAIL_FROM,LOGIN_URL,MAX_ATTACHMENT_BYTES,emailPayload} from '../../lib/employee-emails'
 import type {Recipient} from '../../lib/employee-emails'
 
 const defaultSubject = 'Your Bandana HR App account is ready'
 const defaultInvitation = `Hi {{name}},
+{{login_url}}
 
 Your Bandana HR App login is ready.
 
-Please open the employee portal at {{login_url}} and sign in using your registered email address and the temporary password shared with you separately. The app will ask you to set a new password at first sign-in.
+Open the link above and sign in using your registered email address and the temporary password shared with you separately. The app will ask you to set a new password at first sign-in.
 
 Once you’re in, please review My Profile, check your Contact Details, and complete Family & Dependants where applicable. You can also view your published payslips under My Payslip.
 
@@ -25,13 +26,27 @@ export default function Emails({recipients,counts,adminEmail,configured,history,
  const [search,setSearch]=useState(invitation?.employeeNo??''),[sourceFilters,setSourceFilters]=useState<string[]>([])
  const [selected,setSelected]=useState<string[]>(invitation?[invitation.id]:[]),[subject,setSubject]=useState(invitation?defaultSubject+" | "+LOGIN_URL:defaultSubject),[body,setBody]=useState(invitation?defaultInvitation.replace("Your Bandana HR App login is ready.","Your Bandana HR App login is ready.\n\nEmployee ID: {{employee_id}}\nSign-in email: "+invitation.loginEmail):defaultInvitation),[campaign,setCampaign]=useState<Campaign|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[previewIndex,setPreviewIndex]=useState(0)
 
+ const [attachment,setAttachment]=useState<File|null>(null)
+ const attachmentInput=useRef<HTMLInputElement>(null)
  const locked=busy||!!campaign&&['sending','uncertain'].includes(campaign.status)
  const sourceOptions=[...new Set(recipients.map(r=>r.source||r.reason).filter(Boolean))].sort()
  const query=search.trim().toLowerCase(),visibleRecipients=recipients.filter(r=>(!sourceFilters.length||sourceFilters.includes(r.source||r.reason))&&[r.employee_no,r.name,r.department,r.email??''].some(value=>value.toLowerCase().includes(query)))
  const eligibleShown=visibleRecipients.filter(r=>r.email)
  async function prepare(test:boolean){
   setBusy(true);setError('')
-  try{const response=await fetch('/api/admin/emails',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:test?'test':'preview',employee_ids:selected,subject,body})}),result=await response.json();if(!response.ok)throw Error(result.error??'Preview failed');setCampaign(result.campaign);setPreviewIndex(0)}
+  try{
+   let file
+   if(attachment){
+    if(!test&&selected.length!==1)throw Error('Select one recipient when attaching a file')
+    const encoded=await new Promise<string>((resolve,reject)=>{
+     const reader=new FileReader()
+     reader.onload=()=>resolve(String(reader.result).split(',')[1])
+     reader.onerror=()=>reject(Error('Could not read the attachment'))
+     reader.readAsDataURL(attachment)
+    })
+    file={filename:attachment.name,content:encoded}
+   }
+   const response=await fetch('/api/admin/emails',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:test?'test':'preview',employee_ids:selected,subject,body,attachment:file})}),result=await response.json();if(!response.ok)throw Error(result.error??'Preview failed');setCampaign(result.campaign);setPreviewIndex(0)}
   catch(e){setError(e instanceof Error?e.message:'Preview failed')}finally{setBusy(false)}
  }
  async function resume(id:string){setBusy(true);setError('');try{const response=await fetch('/api/admin/emails',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'resume',campaign_id:id})}),result=await response.json();if(!response.ok)throw Error(result.error??'Could not reload preview');setCampaign(result.campaign);setPreviewIndex(0)}catch(e){setError(e instanceof Error?e.message:'Could not reload preview')}finally{setBusy(false)}}
@@ -52,10 +67,21 @@ export default function Emails({recipients,counts,adminEmail,configured,history,
  <p className="muted" role="status">Showing {visibleRecipients.length} of {recipients.length} employees. {selected.length} selected. Up to 100 per send. Selections stay checked when you search or filter.</p>
  <div className="bar recipient-toolbar"><button className="secondary" disabled={locked||!eligibleShown.length} onClick={()=>{change();setSelected(eligibleShown.slice(0,100).map(r=>r.id))}}>Select all eligible shown</button><details><summary>Source / Reason{sourceFilters.length?' ('+sourceFilters.length+')':''}</summary><fieldset><legend>Show any selected source or reason</legend>{sourceOptions.map(value=><label key={value} style={{flexDirection:'row',alignItems:'center'}}><input type="checkbox" style={{width:'auto',minWidth:0,flex:'none'}} checked={sourceFilters.includes(value)} onChange={event=>{const checked=event.target.checked;setSourceFilters(values=>checked?[...values,value]:values.filter(item=>item!==value))}}/>{value}</label>)}<button type="button" className="secondary" disabled={!sourceFilters.length} onClick={()=>setSourceFilters([])}>Clear filter</button></fieldset></details><button className="secondary" disabled={locked} onClick={()=>{change();setSelected([])}}>Clear selection</button></div>
  <div className="tablewrap" style={{maxHeight:400,overflow:'auto'}}><table><thead><tr><th>Select</th>{recipientsSort.heading('employee_no', 'Employee ID')}{recipientsSort.heading('name', 'Name')}{recipientsSort.heading('department', 'Department')}{recipientsSort.heading('email', 'Email')}{recipientsSort.heading('source', 'Source / reason')}</tr></thead><tbody>{recipientsSort.sortRows(visibleRecipients,(row,column)=>column==='source'?row.source||row.reason:row[column as 'employee_no'|'name'|'department'|'email']).map(r=><tr key={r.id}><td><input type="checkbox" aria-label={'Select '+r.name} disabled={locked||!r.email||!selected.includes(r.id)&&selected.length>=100} checked={selected.includes(r.id)} onChange={e=>{change();setSelected(ids=>e.target.checked?[...ids,r.id]:ids.filter(id=>id!==r.id))}}/></td><td>{r.employee_no}</td><td>{r.name}</td><td>{r.department}</td><td>{r.email??'Excluded'}</td><td>{r.source||r.reason}</td></tr>)}</tbody></table></div>{!visibleRecipients.length&&<p>No employees match your filters.</p>}</section>
- <section className="panel"><h2>2. Write the email</h2><label>Subject<input maxLength={200} value={subject} disabled={locked} onChange={e=>{change();setSubject(e.target.value)}}/></label><label>Message<textarea rows={10} maxLength={20000} value={body} disabled={locked} onChange={e=>{change();setBody(e.target.value)}} style={{width:'100%',font:'inherit',padding:12}}/></label><p className="muted">Optional placeholders: {'{{name}}'}, {'{{employee_id}}'}, {'{{login_url}}'}. Login URL: {LOGIN_URL}. This email does not generate or reset passwords.</p><div className="bar"><button disabled={locked||!selected.length} onClick={()=>void prepare(false)}>Preview selected employees</button><button className="secondary" disabled={locked||!adminEmail} onClick={()=>void prepare(true)}>Prepare test to me</button></div></section>
+ <section className="panel"><h2>2. Write the email</h2><label>Subject<input maxLength={200} value={subject} disabled={locked} onChange={e=>{change();setSubject(e.target.value)}}/></label><label>Message<textarea rows={10} maxLength={20000} value={body} disabled={locked} onChange={e=>{change();setBody(e.target.value)}} style={{width:'100%',font:'inherit',padding:12}}/></label><label>Attachment (optional)<input ref={attachmentInput} type="file" disabled={locked} onChange={event=>{
+  change()
+  const file=event.target.files?.[0]??null
+  if(file&&(file.size===0||file.size>MAX_ATTACHMENT_BYTES)){
+   event.target.value=''
+   setAttachment(null)
+   setError('Choose a non-empty attachment up to 2 MiB')
+   return
+  }
+  setAttachment(file)
+ }}/></label>{attachment&&<button type="button" className="secondary" disabled={locked} onClick={()=>{change();setAttachment(null);if(attachmentInput.current)attachmentInput.current.value=""}}>Remove attachment</button>}<p className="muted">One file up to 2 MiB. Select one recipient for an email with an attachment.</p><p className="muted">Optional placeholders: {'{{name}}'}, {'{{employee_id}}'}, {'{{login_url}}'}. Login URL: {LOGIN_URL}. This email does not generate or reset passwords.</p><div className="bar"><button disabled={locked||!selected.length} onClick={()=>void prepare(false)}>Preview selected employees</button><button className="secondary" disabled={locked||!adminEmail} onClick={()=>void prepare(true)}>Prepare test to me</button></div></section>
  {error&&<p className="error" role="alert">{error}</p>}
  {campaign&&<section className="panel"><h2>3. Review and send</h2><p role="status"><strong>{statusName(campaign.status)}</strong> · {campaign.recipients.length} recipient{campaign.recipients.length!==1?'s':''}</p>{campaign.error_message&&<p className="error">{campaign.error_message}</p>}<p>Subject: <strong>{campaign.subject}</strong><br/>From: {EMAIL_FROM}<br/>Reply to: {campaign.reply_to}</p>
  <label>Preview recipient<select value={previewIndex} onChange={e=>setPreviewIndex(Number(e.target.value))}>{campaign.recipients.map((r,i)=><option key={r.id} value={i}>{r.employee_no} · {r.name} · {r.email}</option>)}</select></label>
+ {campaign.recipients[previewIndex]?.attachmentName&&<p>Attachment: {campaign.recipients[previewIndex].attachmentName}</p>}
  <pre style={{whiteSpace:'pre-wrap',font:'inherit',background:'#f5f7fa',padding:20}}>{sample?.text}</pre>
  {campaign.status==='uncertain'&&<p className="notice">The outcome is unconfirmed. Retry this same preview so Resend can prevent duplicate sending. After 23 hours, check Resend before taking further action.</p>}
  {campaign.status==='accepted'?<p className="notice">Submitted to Resend. This preview cannot be sent again.</p>:<button disabled={busy||!configured} onClick={()=>void send()}>{busy?'Sending…':campaign.status==='uncertain'?'Retry this same preview':campaign.recipients[0]?.test?'Send test to '+adminEmail:'Send to '+campaign.recipients.length+' employees'}</button>}

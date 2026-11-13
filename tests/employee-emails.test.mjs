@@ -36,3 +36,15 @@ test('provider failures and incomplete response are never accepted',async()=>{
  assert.equal((await sendEmailBatch(campaign,'key',async()=>({ok:true,json:async()=>({data:[{id:'a'}]})}))).status,'uncertain')
 })
 test('missing key prevents any provider request',async()=>{let calls=0;await assert.rejects(()=>sendEmailBatch(campaign,'',async()=>{calls++}),/RESEND_API_KEY/);assert.equal(calls,0)})
+test('an attachment uses the single email endpoint with the saved file and retry key',async()=>{
+ const attachment={filename:'guide.pdf',content:'dGVzdA=='}
+ const draft={...campaign,recipients:[{...campaign.recipients[0],attachment}]}
+ const send=async(url,options)=>{
+  assert.equal(url,'https://api.resend.com/emails')
+  assert.equal(options.headers['Idempotency-Key'],'bandana-email/campaign-1')
+  assert.deepEqual(JSON.parse(options.body).attachments,[attachment])
+  return {ok:true,json:async()=>({id:'sent-1'})}
+ }
+ assert.equal((await sendEmailBatch(draft,'test-key',send)).status,'accepted')
+ await assert.rejects(()=>sendEmailBatch({...draft,recipients:[...draft.recipients,campaign.recipients[1]]},'test-key',send),/one recipient/)
+})
