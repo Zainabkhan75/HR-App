@@ -11,7 +11,8 @@ export default function Credentials(){
  const [employeeQuery,setEmployeeQuery]=useState('')
  const [employeeListOpen,setEmployeeListOpen]=useState(false)
  const [activeEmployeeIndex,setActiveEmployeeIndex]=useState(0)
- const employeeMatches=rows.filter(row=>row.linked&&!row.isAdmin&&row.employmentStatus==='active'&&
+ const selectedEmailAccount=rows.find(row=>row.employeeId===emailEmployee)
+ const employeeMatches=rows.filter(row=>row.linked&&row.employmentStatus==='active'&&
   (row.name+' '+row.employeeId+' '+row.username).toLowerCase().includes(employeeQuery.trim().toLowerCase()))
   .sort((a,b)=>a.name.localeCompare(b.name))
  const employeeListVisible=employeeListOpen&&!busy
@@ -27,7 +28,7 @@ export default function Credentials(){
  const [newEmail,setNewEmail]=useState('')
  async function requestEmailChange(event:React.FormEvent){
   event.preventDefault()
-  if(!emailEmployee)return
+  if(!emailEmployee||selectedEmailAccount?.isAdmin)return
   setBusy(true);setError('');setNotice('')
   try{
    const response=await fetch('/api/admin/credentials/email',{
@@ -105,8 +106,9 @@ export default function Credentials(){
     </div>
    </div>
    <label>New sign-in email<input required type="email" maxLength={254} value={newEmail} disabled={busy} onChange={event=>setNewEmail(event.target.value)}/></label>
-   <button disabled={busy||!emailEmployee}>Send confirmation emails</button>
+   <button disabled={busy||!emailEmployee||selectedEmailAccount?.isAdmin}>Send confirmation emails</button>
   </form>
+  {selectedEmailAccount?.isAdmin&&<p role="status">This employee has HR Admin access. Use administrator recovery to change their sign-in email.</p>}
  </section>
  <section className="panel"><p className="notice">Existing passwords cannot be displayed. Generating a temporary password replaces that employee’s current password and requires them to change it at next sign-in. Passwords appear only in this session.</p>
  <div className="bar credentials-toolbar"><label>Find employee<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, name or username"/></label><label>Employment Status<select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value as typeof status);setSelected([])}}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><button className="secondary" disabled={busy||!shown.some(r=>r.linked)} onClick={()=>setSelected(shown.filter(r=>r.linked).map(r=>r.employeeId))}>Select all linked shown</button><button disabled={busy||!selected.length} onClick={generate}>Generate for selected ({selected.length})</button><button className="secondary" onClick={download}>Download table CSV</button></div>
