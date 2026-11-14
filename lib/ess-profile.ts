@@ -31,7 +31,7 @@ export const contactPatch=(values:Values,draft:Record<string,string>):Record<str
 )
 
 export const editableProfileSections=[
- {title:'Core Information',fields:[['full_name','Full Name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports To (Designation)'],['line_manager_employee_no','Line Manager Name'],['source_note','Source / Verification Note']]},
+ {title:'Core Information',fields:[['full_name','Full Name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports To (Designation)'],['line_manager_employee_no','Line Manager Name']]},
  {title:'Personal Information',fields:[['cnic_passport','CNIC / Passport'],['email','Work Email'],...backgroundSections[0].fields]},
  ...backgroundSections.slice(1),
  {title:'Employment Information',fields:employmentFields},
