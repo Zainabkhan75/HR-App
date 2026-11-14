@@ -70,6 +70,20 @@ label input,label select,label textarea,label button{text-transform:none}
 .credentials-toolbar label:first-child{flex:1 0 155px;max-width:260px}
 .credentials-toolbar :is(input,select,button){height:40px}
 .credentials-toolbar button{flex:0 0 auto;white-space:nowrap;padding-inline:12px;font-size:14px}
+.credentials-email-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:16px}
+.credentials-email-picker{position:relative}
+.credentials-email-picker label{margin:0}
+.credentials-email-picker input,.credentials-email-form>button{min-height:40px}
+.credentials-email-form>button{grid-column:2;grid-row:1}
+.credentials-email-details{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
+.credentials-email-details>*{margin:0}
+.credentials-email-details>label:last-child,.credentials-email-details>p{grid-column:1/-1}
+.credentials-email-details>label:last-child{flex-direction:row;align-items:center}
+.credentials-email-details input[type=checkbox]{width:auto;margin:0}
+@media(max-width:700px){
+ .credentials-email-form,.credentials-email-details{grid-template-columns:minmax(0,1fr)}
+ .credentials-email-form>button{grid-column:1;grid-row:auto;justify-self:start}
+}
 
 .recipient-toolbar{justify-content:flex-start;align-items:center;flex-wrap:nowrap;gap:12px;margin-bottom:10px}
 .recipient-toolbar>button,.recipient-toolbar summary{white-space:nowrap}

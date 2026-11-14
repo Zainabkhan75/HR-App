@@ -84,8 +84,8 @@ export default function Credentials(){
  return <main className="shell"><header><div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Employee credentials</h1><p>Linked usernames and newly generated temporary passwords</p></div><nav className="head-actions"><a href="/employees">Employee directory</a><a href="/reports">Reports</a></nav></header>
  <section className="panel"><h2>Change sign-in email</h2>
   <p>Review the address proposed from the employee profile. Confirm mailbox ownership before applying the change.</p>
-  <form className="bar" onSubmit={requestEmailChange}>
-   <div style={{position:'relative',flex:'1 1 250px'}}>
+  <form className="credentials-email-form" onSubmit={requestEmailChange}>
+   <div className="credentials-email-picker">
     <label>Employee<input role="combobox" aria-autocomplete="list"
      aria-expanded={employeeListVisible} aria-controls="email-employee-options"
      aria-activedescendant={employeeListVisible&&employeeMatches[activeEmployeeIndex]?'email-employee-option-'+activeEmployeeIndex:undefined}
@@ -120,12 +120,12 @@ export default function Credentials(){
      {!employeeMatches.length&&<p role="status" style={{padding:'0 10px'}}>No matching employees.</p>}
     </div>
    </div>
-   {selectedEmailAccount&&<>
+   {selectedEmailAccount&&<div className="credentials-email-details">
     <label>Current sign-in email<input readOnly value={selectedEmailAccount.username}/></label>
     <label>Proposed sign-in email<input readOnly value={currentProposal?.email??''}/></label>
     <p role="status">{currentProposal?.reason??'Checking the profile email addresses…'}</p>
     <label><input type="checkbox" checked={verified} disabled={busy||!currentProposal?.email||selectedEmailAccount.isAdmin} onChange={event=>setVerified(event.target.checked)}/> I verified that the employee controls this mailbox</label>
-   </>}
+   </div>}
    <button disabled={busy||!verified||!currentProposal?.email||currentProposal.email===selectedEmailAccount?.username||selectedEmailAccount?.isAdmin}>Confirm and change sign-in email</button>
   </form>
   {selectedEmailAccount?.isAdmin&&<p role="status">This employee has HR Admin access. Use administrator recovery to change their sign-in email.</p>}
