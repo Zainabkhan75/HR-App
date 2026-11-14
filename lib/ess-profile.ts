@@ -34,8 +34,8 @@ export const editableProfileSections=[
  {title:'Core Information',fields:[['full_name','Full Name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports To (Designation)'],['line_manager_employee_no','Line Manager Name']]},
  {title:'Personal Information',fields:[['cnic_passport','CNIC / Passport'],['email','Work Email'],...backgroundSections[0].fields]},
  ...backgroundSections.slice(1),
- {title:'Employment Information',fields:employmentFields},
- {title:'Salary & Benefits',fields:rewardFields.filter(([key])=>key!=='medical_hospitalisation_limit_person_year_pkr')},
+ {title:'Employment Information',fields:[...employmentFields.slice(0,-2),employmentFields[4],employmentFields[3]]},
+ {title:'Salary & Benefits (where applicable)',fields:rewardFields.filter(([key])=>key!=='medical_hospitalisation_limit_person_year_pkr'),readOnly:true},
  {title:'Salary Transfer & Bank Details',fields:[['salary_transfer_method','Salary Transfer Method'],['bank_name','Bank Name'],['bank_branch','Bank Branch'],['bank_account_title','Bank Account Title'],['bank_account_number','Bank Account Number'],['iban','IBAN']]},
 ] as const
 export const profileDraft=(profile:EmployeeProfile):Record<string,string>=>{
@@ -44,5 +44,5 @@ export const profileDraft=(profile:EmployeeProfile):Record<string,string>=>{
 }
 export const profilePatch=(profile:EmployeeProfile,draft:Record<string,string>):Record<string,string>=>{
  const baseline=profileDraft(profile)
- return Object.fromEntries(editableProfileSections.flatMap(section=>section.fields.map(([key])=>key)).filter(key=>(draft[key]??'').trim()!==baseline[key].trim()).map(key=>[key,(draft[key]??'').trim()]))
+ return Object.fromEntries(editableProfileSections.filter(section=>!('readOnly' in section)).flatMap(section=>section.fields.map(([key])=>key)).filter(key=>(draft[key]??'').trim()!==baseline[key].trim()).map(key=>[key,(draft[key]??'').trim()]))
 }
