@@ -9,6 +9,7 @@ export default function Credentials(){
  const [rows,setRows]=useState<Row[]>([]),[generated,setGenerated]=useState<Record<string,string>>({}),[selected,setSelected]=useState<string[]>([]),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
  const [status,setStatus]=useState<'all'|Row['employmentStatus']>('all')
  const [emailEmployee,setEmailEmployee]=useState('')
+ const [emailFeedback,setEmailFeedback]=useState<{message:string;failed:boolean}|null>(null)
  const [employeeQuery,setEmployeeQuery]=useState('')
  const [employeeListOpen,setEmployeeListOpen]=useState(false)
  const [activeEmployeeIndex,setActiveEmployeeIndex]=useState(0)
@@ -21,6 +22,7 @@ export default function Credentials(){
   setEmailEmployee(row.employeeId)
   setEmployeeQuery(row.name)
   setNewEmail('')
+  setEmailFeedback(null)
   setEmployeeListOpen(false)
  }
  useEffect(()=>{
@@ -36,7 +38,7 @@ export default function Credentials(){
   event.preventDefault()
   if(!canChange)return
   if(!window.confirm(`Change ${selectedEmailAccount?.name}'s sign-in email to ${requestedEmail}? Confirm only if the employee controls this mailbox.`))return
-  setBusy(true);setError('');setNotice('')
+  setBusy(true);setEmailFeedback(null)
   try{
    const response=await fetch('/api/admin/credentials/email',{
     method:'POST',headers:{'Content-Type':'application/json'},
@@ -45,8 +47,9 @@ export default function Credentials(){
    const {message,email}=await response.json()
    if(!response.ok)throw Error(message)
    setRows(old=>old.map(row=>row.employeeId===emailEmployee?{...row,username:email}:row))
-   setNotice(message)
-  }catch(error){setError(error instanceof Error?error.message:'Email change request failed.')}
+   setNewEmail('')
+   setEmailFeedback({message:`Sign-in email changed to ${email}.`,failed:false})
+  }catch(error){setEmailFeedback({message:error instanceof Error?error.message:'Email change request failed.',failed:true})}
   finally{setBusy(false)}
  }
  useEffect(()=>{fetch('/api/admin/credentials',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Could not load employee accounts');return r.json()}).then(d=>{setRows(d.rows);setCanChangeAdminEmail(d.canChangeAdminEmail===true)}).catch(e=>setError(e.message))},[])
@@ -86,7 +89,7 @@ export default function Credentials(){
      value={employeeQuery} disabled={busy}
      onFocus={()=>{setEmployeeListOpen(true);setActiveEmployeeIndex(0)}}
      onBlur={()=>setEmployeeListOpen(false)}
-     onChange={event=>{setEmployeeQuery(event.target.value);setEmailEmployee('');setNewEmail('');setActiveEmployeeIndex(0);setEmployeeListOpen(true)}}
+     onChange={event=>{setEmployeeQuery(event.target.value);setEmailEmployee('');setNewEmail('');setEmailFeedback(null);setActiveEmployeeIndex(0);setEmployeeListOpen(true)}}
      onKeyDown={event=>{
       if(event.key==='Escape'){setEmployeeListOpen(false);return}
       if(event.key==='ArrowDown'||event.key==='ArrowUp'){
@@ -120,6 +123,7 @@ export default function Credentials(){
    </div>}
    <button disabled={!canChange}>Confirm and change sign-in email</button>
   </form>
+  {emailFeedback&&<p className={emailFeedback.failed?'error':'notice'} role={emailFeedback.failed?'alert':'status'}>{emailFeedback.message}</p>}
   {selectedEmailAccount?.isAdmin&&!canChangeAdminEmail&&<p role="status">Only the Super Admin can change this HR Admin’s sign-in email.</p>}
  </section>
  <section className="panel"><p className="notice">Existing passwords cannot be displayed. Generating a temporary password replaces that employee’s current password and requires them to change it at next sign-in. Passwords appear only in this session.</p>
