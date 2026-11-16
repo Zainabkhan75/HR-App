@@ -37,7 +37,13 @@ async function readRegister(db:Awaited<ReturnType<typeof serverSupabase>>){
 export async function GET(){
  const ctx=await context()
  if(ctx.status!==200)return response({error:ctx.status===401?'Sign in required':'HR administrator access required'},ctx.status)
- try{return response({rows:await readRegister(ctx.db)})}catch{return response({error:'Register unavailable'},503)}
+ try{
+  const [rows,permission]=await Promise.all([
+   readRegister(ctx.db),
+   serviceDb().rpc('can_change_hr_admin_login_email',{p_actor:ctx.user.id}),
+  ])
+  return response({rows,canChangeAdminEmail:permission.data===true&&!permission.error})
+ }catch{return response({error:'Register unavailable'},503)}
 }
 export async function POST(request:Request){
  if(!sameOriginRequest(request))return response({error:'Request not allowed'},403)

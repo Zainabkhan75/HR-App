@@ -29,7 +29,9 @@ export default function Credentials(){
  const [newEmail,setNewEmail]=useState('')
  const requestedEmail=newEmail.trim().toLowerCase()
  const alreadyCurrent=!!requestedEmail&&requestedEmail===selectedEmailAccount?.username.toLowerCase()
- const canChange=!!selectedEmailAccount&&!selectedEmailAccount.isAdmin&&validLoginEmail(requestedEmail)&&!alreadyCurrent&&!busy
+ const [canChangeAdminEmail,setCanChangeAdminEmail]=useState(false)
+ const canEdit=!!selectedEmailAccount&&(!selectedEmailAccount.isAdmin||canChangeAdminEmail)
+ const canChange=canEdit&&validLoginEmail(requestedEmail)&&!alreadyCurrent&&!busy
  async function requestEmailChange(event:React.FormEvent){
   event.preventDefault()
   if(!canChange)return
@@ -47,7 +49,7 @@ export default function Credentials(){
   }catch(error){setError(error instanceof Error?error.message:'Email change request failed.')}
   finally{setBusy(false)}
  }
- useEffect(()=>{fetch('/api/admin/credentials',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Could not load employee accounts');return r.json()}).then(d=>setRows(d.rows)).catch(e=>setError(e.message))},[])
+ useEffect(()=>{fetch('/api/admin/credentials',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Could not load employee accounts');return r.json()}).then(d=>{setRows(d.rows);setCanChangeAdminEmail(d.canChangeAdminEmail===true)}).catch(e=>setError(e.message))},[])
  const credentialsSort=useTableSort()
  const shown=useMemo(()=>rows.filter(r=>(status==='all'||r.employmentStatus===status)&&(r.employeeId+' '+r.name+' '+r.username).toLowerCase().includes(search.toLowerCase().trim())),[rows,search,status])
  function toggle(id:string){setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id])}
@@ -113,12 +115,12 @@ export default function Credentials(){
    </div>
    {selectedEmailAccount&&<div className="credentials-email-details">
     <label>Current sign-in email<input readOnly value={selectedEmailAccount.username}/></label>
-    {!selectedEmailAccount.isAdmin&&<label>New sign-in email<input type="email" maxLength={254} value={newEmail} disabled={busy} onChange={event=>setNewEmail(event.target.value)}/></label>}
+    {canEdit&&<label>New sign-in email<input type="email" maxLength={254} value={newEmail} disabled={busy} onChange={event=>setNewEmail(event.target.value)}/></label>}
     {alreadyCurrent&&<p role="status">This is already the current sign-in email.</p>}
    </div>}
    <button disabled={!canChange}>Confirm and change sign-in email</button>
   </form>
-  {selectedEmailAccount?.isAdmin&&<p role="status">This employee has HR Admin access. Use administrator recovery to change their sign-in email.</p>}
+  {selectedEmailAccount?.isAdmin&&!canChangeAdminEmail&&<p role="status">Only the Super Admin can change this HR Admin’s sign-in email.</p>}
  </section>
  <section className="panel"><p className="notice">Existing passwords cannot be displayed. Generating a temporary password replaces that employee’s current password and requires them to change it at next sign-in. Passwords appear only in this session.</p>
  <div className="bar credentials-toolbar"><label>Find employee<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, name or username"/></label><label>Employment Status<select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value as typeof status);setSelected([])}}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><button className="secondary" disabled={busy||!shown.some(r=>r.linked)} onClick={()=>setSelected(shown.filter(r=>r.linked).map(r=>r.employeeId))}>Select all linked shown</button><button disabled={busy||!selected.length} onClick={generate}>Generate for selected ({selected.length})</button><button className="secondary" onClick={download}>Download table CSV</button></div>

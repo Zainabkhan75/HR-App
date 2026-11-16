@@ -17,6 +17,7 @@ export async function POST(request:Request){
  if(input.action!=='confirm'||input.verified!==true||!validLoginEmail(input.email))return reply({message:'Enter a valid new sign-in email and confirm the employee controls it.'},400)
  const {data,error:failure}=await db.rpc('confirm_employee_login_email',{p_employee:employee.id,p_actor:context.user.id,p_confirmed:input.email.trim().toLowerCase()})
  if(failure?.code==='23505')return reply({message:'That email is already used or unavailable for sign-in.'},409)
+ if(failure?.code==='42501')return reply({message:'Only the Super Admin can change an HR Admin sign-in email.'},403)
  if(failure||!data)return reply({message:'The email change could not be completed. Refresh Credentials and check that the employee has an active login.'},409)
  return reply({email:data,message:'Sign-in email changed.'})
 }
