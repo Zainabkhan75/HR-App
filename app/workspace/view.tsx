@@ -17,6 +17,7 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
  const [year,setYear]=useState(String(initialData.year))
  const [form,setForm]=useState({leave_type:'annual' as ApplicationLeaveType,start_date:'',end_date:'',reason:'',hours:undefined as 2|4|undefined})
  const [notes,setNotes]=useState<Record<string,string>>({})
+ const [cancellation,setCancellation]=useState<{id:string;reason:string}|null>(null)
  const [policy,setPolicy]=useState(()=>({annual:String(initialData.policy?.annual??10),sick:String(initialData.policy?.sick??10),casual:String(initialData.policy?.casual??10),weekdays_only:initialData.policy?.weekdays_only??true,holidays:initialData.policy?.holidays.map(displayShortDate).join('\n')??''}))
  const [opening,setOpening]=useState({employee_id:'',leave_type:'annual' as LeaveType,entitlement:'10',taken:''})
  const [assignment,setAssignment]=useState({employee_id:''})
@@ -53,11 +54,12 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
   setData(result);setYear(String(result.year));setUncertain(false)
   return result
  }
- async function run(rpc:'leave_action'|'leave_admin',action:string,payload:Payload,success:string,clear?:()=>void){
+ async function run(rpc:'leave_action'|'leave_admin'|'leave_cancel_approved',action:string,payload:Payload,success:string,clear?:()=>void){
   if(lock.current||uncertain)return
   lock.current=true;setBusy(true);setError('');setNotice('')
   try{
-   const {data:result,error:failure}=await browserDb().rpc(rpc,{p_action:action,p_payload:payload})
+   const args=rpc==='leave_cancel_approved'?payload:{p_action:action,p_payload:payload}
+   const {data:result,error:failure}=await browserDb().rpc(rpc,args)
    if(failure){
     const expected=['22023','40001','42501','23514','23503','22P02','22007','22008'].includes(failure.code)
     if(!expected)setUncertain(true)
@@ -117,6 +119,23 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
    <label>Decision note (required to reject)<textarea maxLength={2000} rows={2} value={notes[r.id]??''} disabled={busy} onChange={e=>setNotes(old=>({...old,[r.id]:e.target.value}))}/></label>
    <div className="ess-form-actions"><button disabled={busy||uncertain} onClick={()=>void run('leave_action','decide',{id:r.id,decision:'approved',note:notes[r.id]??''},'Approval recorded.')}>Approve</button><button className="secondary" disabled={busy||uncertain||!notes[r.id]?.trim()} onClick={()=>void run('leave_action','decide',{id:r.id,decision:'rejected',note:notes[r.id]},'Leave request rejected.')}>Reject</button></div>
   </div>:r.status==='pending'&&!approvals?<button className="secondary" disabled={busy||uncertain} onClick={()=>{if(window.confirm('Withdraw this pending leave request?'))void run('leave_action','cancel',{id:r.id},'Leave request withdrawn. Reserved days released.')}}>Withdraw request</button>:null}
+  {approvals&&data.is_hr&&r.status==='approved'&&(
+   cancellation?.id===r.id?<form onSubmit={e=>{
+    e.preventDefault()
+    if(!cancellation.reason.trim())return
+    void run('leave_cancel_approved','',{p_request_id:r.id,p_reason:cancellation.reason},
+     'Approved leave cancelled.',()=>setCancellation(null))
+   }}>
+    <label>Reason for cancellation<textarea required maxLength={1800} rows={2} value={cancellation.reason} disabled={busy||uncertain}
+     onChange={e=>setCancellation({id:r.id,reason:e.target.value})}/></label>
+    <p className="muted">This releases the charged days, where applicable, and records the reason for the employee’s Inbox.</p>
+    <div className="ess-form-actions">
+     <button type="submit" disabled={busy||uncertain||!cancellation.reason.trim()}>Confirm cancellation</button>
+     <button type="button" className="secondary" disabled={busy} onClick={()=>setCancellation(null)}>Keep approved</button>
+    </div>
+   </form>:<button type="button" className="secondary" disabled={busy||uncertain}
+    onClick={()=>setCancellation({id:r.id,reason:''})}>Cancel approved leave</button>
+  )}
  </article>)}</div>}
  const content=<div className={embedded?undefined:"work-content"}>
 
