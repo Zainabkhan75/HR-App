@@ -119,14 +119,14 @@ export default function Credentials(){
    {selectedEmailAccount&&<div className="credentials-email-details">
     <label>Current sign-in email<input readOnly value={selectedEmailAccount.username}/></label>
     {canEdit&&<label>New sign-in email<input type="email" maxLength={254} value={newEmail} disabled={busy} onChange={event=>setNewEmail(event.target.value)}/></label>}
-    {alreadyCurrent&&<p role="status">This is already the current sign-in email.</p>}
+    {alreadyCurrent&&<p className="error" role="status">This is already the current sign-in email.</p>}
    </div>}
    <button disabled={!canChange}>Confirm and change sign-in email</button>
   </form>
   {emailFeedback&&<p className={emailFeedback.failed?'error':'notice'} role={emailFeedback.failed?'alert':'status'}>{emailFeedback.message}</p>}
-  {selectedEmailAccount?.isAdmin&&!canChangeAdminEmail&&<p role="status">Only the Super Admin can change this HR Admin’s sign-in email.</p>}
+  {selectedEmailAccount?.isAdmin&&!canChangeAdminEmail&&<p className="error" role="status">Only the Super Admin can change this HR Admin’s sign-in email.</p>}
  </section>
- <section className="panel"><p className="notice">Existing passwords cannot be displayed. Generating a temporary password replaces that employee’s current password and requires them to change it at next sign-in. Passwords appear only in this session.</p>
+ <section className="panel"><p className="error">Existing passwords cannot be displayed. Generating a temporary password replaces that employee’s current password and requires them to change it at next sign-in. Passwords appear only in this session.</p>
  <div className="bar credentials-toolbar"><label>Find employee<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, name or username"/></label><label>Employment Status<select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value as typeof status);setSelected([])}}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><button className="secondary" disabled={busy||!shown.some(r=>r.linked)} onClick={()=>setSelected(shown.filter(r=>r.linked).map(r=>r.employeeId))}>Select all linked shown</button><button disabled={busy||!selected.length} onClick={generate}>Generate for selected ({selected.length})</button><button className="secondary" onClick={download}>Download table CSV</button></div>
  {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
  <p className="muted">Showing {shown.length} of {rows.length} employees · {rows.filter(r=>r.linked).length} active linked accounts · {Object.keys(generated).length} passwords shown</p>
