@@ -77,9 +77,8 @@ label input,label select,label textarea,label button{text-transform:none}
 .credentials-email-form>button{grid-column:2;grid-row:1}
 .credentials-email-details{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
 .credentials-email-details>*{margin:0}
-.credentials-email-details>label:last-child,.credentials-email-details>p{grid-column:1/-1}
-.credentials-email-details>label:last-child{flex-direction:row;align-items:center}
-.credentials-email-details input[type=checkbox]{width:auto;margin:0}
+.credentials-email-details>p{grid-column:1/-1}
+.credentials-email-form>button:disabled{cursor:default}
 @media(max-width:700px){
  .credentials-email-form,.credentials-email-details{grid-template-columns:minmax(0,1fr)}
  .credentials-email-form>button{grid-column:1;grid-row:auto;justify-self:start}

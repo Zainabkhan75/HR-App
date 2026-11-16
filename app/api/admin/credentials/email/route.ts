@@ -14,12 +14,9 @@ export async function POST(request:Request){
  const db=serviceDb()
  const {data:employee,error}=await db.from('employees').select('id').eq('employee_no',input.employeeId).eq('employment_state','active').maybeSingle()
  if(error||!employee)return reply({message:'Active employee not found.'},404)
- if(input.action==='preview'){
-  const {data,error}=await db.rpc('propose_employee_login_email',{p_employee:employee.id})
-  return error?reply({message:'Could not check the proposed address.'},503):reply({proposal:data})
- }
- if(input.action!=='confirm'||input.verified!==true||!validLoginEmail(input.email))return reply({message:'Confirm the employee controls the proposed mailbox.'},400)
- const {data,error:failure}=await db.rpc('confirm_employee_login_email',{p_employee:employee.id,p_actor:context.user.id,p_confirmed:input.email})
- if(failure||!data)return reply({message:'The email change could not be completed. Review the current profile and account before retrying.'},409)
+ if(input.action!=='confirm'||input.verified!==true||!validLoginEmail(input.email))return reply({message:'Enter a valid new sign-in email and confirm the employee controls it.'},400)
+ const {data,error:failure}=await db.rpc('confirm_employee_login_email',{p_employee:employee.id,p_actor:context.user.id,p_confirmed:input.email.trim().toLowerCase()})
+ if(failure?.code==='23505')return reply({message:'That email is already used or unavailable for sign-in.'},409)
+ if(failure||!data)return reply({message:'The email change could not be completed. Refresh Credentials and check that the employee has an active login.'},409)
  return reply({email:data,message:'Sign-in email changed.'})
 }

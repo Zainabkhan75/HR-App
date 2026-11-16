@@ -1,4 +1,5 @@
 'use client'
+import {validLoginEmail} from '../../lib/login-email'
 import {useTableSort} from '../sortable-table'
 import {useEffect,useMemo,useState} from 'react'
 
@@ -19,40 +20,30 @@ export default function Credentials(){
  function chooseEmailEmployee(row:Row){
   setEmailEmployee(row.employeeId)
   setEmployeeQuery(row.name)
-  setVerified(false)
+  setNewEmail('')
   setEmployeeListOpen(false)
  }
  useEffect(()=>{
   if(employeeListVisible)document.getElementById('email-employee-option-'+activeEmployeeIndex)?.scrollIntoView({block:'nearest'})
  },[employeeListVisible,activeEmployeeIndex])
- const [proposal,setProposal]=useState<{employeeId:string;email?:string;reason:string}|null>(null)
- const [verified,setVerified]=useState(false)
- const currentProposal=proposal?.employeeId===emailEmployee?proposal:null
- useEffect(()=>{
-  if(!emailEmployee)return
-  const controller=new AbortController()
-  fetch('/api/admin/credentials/email',{
-   method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({action:'preview',employeeId:emailEmployee}),signal:controller.signal,
-  }).then(async response=>{
-   const result=await response.json()
-   if(!controller.signal.aborted)setProposal({employeeId:emailEmployee,...(response.ok?result.proposal:{reason:result.message})})
-  }).catch(()=>{if(!controller.signal.aborted)setProposal({employeeId:emailEmployee,reason:'Could not load the proposed address.'})})
-  return ()=>controller.abort()
- },[emailEmployee])
+ const [newEmail,setNewEmail]=useState('')
+ const requestedEmail=newEmail.trim().toLowerCase()
+ const alreadyCurrent=!!requestedEmail&&requestedEmail===selectedEmailAccount?.username.toLowerCase()
+ const canChange=!!selectedEmailAccount&&!selectedEmailAccount.isAdmin&&validLoginEmail(requestedEmail)&&!alreadyCurrent&&!busy
  async function requestEmailChange(event:React.FormEvent){
   event.preventDefault()
-  if(!currentProposal?.email||!verified||selectedEmailAccount?.isAdmin)return
+  if(!canChange)return
+  if(!window.confirm(`Change ${selectedEmailAccount?.name}'s sign-in email to ${requestedEmail}? Confirm only if the employee controls this mailbox.`))return
   setBusy(true);setError('');setNotice('')
   try{
    const response=await fetch('/api/admin/credentials/email',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'confirm',employeeId:emailEmployee,email:currentProposal.email,verified}),
+    body:JSON.stringify({action:'confirm',employeeId:emailEmployee,email:requestedEmail,verified:true}),
    })
    const {message,email}=await response.json()
    if(!response.ok)throw Error(message)
    setRows(old=>old.map(row=>row.employeeId===emailEmployee?{...row,username:email}:row))
-   setNotice(message);setVerified(false)
+   setNotice(message)
   }catch(error){setError(error instanceof Error?error.message:'Email change request failed.')}
   finally{setBusy(false)}
  }
@@ -83,7 +74,7 @@ export default function Credentials(){
  }
  return <main className="shell"><header><div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Employee credentials</h1><p>Linked usernames and newly generated temporary passwords</p></div><nav className="head-actions"><a href="/employees">Employee directory</a><a href="/reports">Reports</a></nav></header>
  <section className="panel"><h2>Change sign-in email</h2>
-  <p>Review the address proposed from the employee profile. Confirm mailbox ownership before applying the change.</p>
+  <p>Select an employee and enter the new sign-in email.</p>
   <form className="credentials-email-form" onSubmit={requestEmailChange}>
    <div className="credentials-email-picker">
     <label>Employee<input role="combobox" aria-autocomplete="list"
@@ -93,7 +84,7 @@ export default function Credentials(){
      value={employeeQuery} disabled={busy}
      onFocus={()=>{setEmployeeListOpen(true);setActiveEmployeeIndex(0)}}
      onBlur={()=>setEmployeeListOpen(false)}
-     onChange={event=>{setEmployeeQuery(event.target.value);setEmailEmployee('');setProposal(null);setVerified(false);setActiveEmployeeIndex(0);setEmployeeListOpen(true)}}
+     onChange={event=>{setEmployeeQuery(event.target.value);setEmailEmployee('');setNewEmail('');setActiveEmployeeIndex(0);setEmployeeListOpen(true)}}
      onKeyDown={event=>{
       if(event.key==='Escape'){setEmployeeListOpen(false);return}
       if(event.key==='ArrowDown'||event.key==='ArrowUp'){
@@ -122,11 +113,10 @@ export default function Credentials(){
    </div>
    {selectedEmailAccount&&<div className="credentials-email-details">
     <label>Current sign-in email<input readOnly value={selectedEmailAccount.username}/></label>
-    <label>Proposed sign-in email<input readOnly value={currentProposal?.email??''}/></label>
-    <p role="status">{currentProposal?.reason??'Checking the profile email addresses…'}</p>
-    <label><input type="checkbox" checked={verified} disabled={busy||!currentProposal?.email||selectedEmailAccount.isAdmin} onChange={event=>setVerified(event.target.checked)}/> I verified that the employee controls this mailbox</label>
+    {!selectedEmailAccount.isAdmin&&<label>New sign-in email<input type="email" maxLength={254} value={newEmail} disabled={busy} onChange={event=>setNewEmail(event.target.value)}/></label>}
+    {alreadyCurrent&&<p role="status">This is already the current sign-in email.</p>}
    </div>}
-   <button disabled={busy||!verified||!currentProposal?.email||currentProposal.email===selectedEmailAccount?.username||selectedEmailAccount?.isAdmin}>Confirm and change sign-in email</button>
+   <button disabled={!canChange}>Confirm and change sign-in email</button>
   </form>
   {selectedEmailAccount?.isAdmin&&<p role="status">This employee has HR Admin access. Use administrator recovery to change their sign-in email.</p>}
  </section>
