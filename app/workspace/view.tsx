@@ -1,7 +1,7 @@
 'use client'
 import DateInput from '../date-input'
 import {displayShortDate} from '../../lib/date-input'
-import {useRef,useState} from 'react'
+import {useEffect,useRef,useState} from 'react'
 import type {FormEvent} from 'react'
 import type {EmployeeProfile} from '../../lib/ess-profile'
 import {browserDb} from '../../lib/supabase'
@@ -15,6 +15,12 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[uncertain,setUncertain]=useState(false)
  const lock=useRef(false)
  const [year,setYear]=useState(String(initialData.year))
+ useEffect(()=>{
+  if(!focusedRequest||(section!=='approvals'&&section!=='leave'))return
+  const request=document.getElementById(section+'-request-'+focusedRequest)
+  request?.focus({preventScroll:true})
+  request?.scrollIntoView({block:'center'})
+ },[focusedRequest,section])
  const [form,setForm]=useState({leave_type:'annual' as ApplicationLeaveType,start_date:'',end_date:'',reason:'',hours:undefined as 2|4|undefined})
  const [notes,setNotes]=useState<Record<string,string>>({})
  const [cancellation,setCancellation]=useState<{id:string;reason:string}|null>(null)
@@ -110,7 +116,7 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
   })
  }
  function openingEmployee(value:string,type:LeaveType=opening.leave_type){const row=data.openings?.find(o=>o.employee_id===value&&o.leave_type===type);setOpening({employee_id:value,leave_type:type,entitlement:String(row?.entitlement??data.policy?.[type]??10),taken:row?String(row.taken):''})}
- function requests(rows:LeaveRequest[],approvals=false){return rows.length===0?<p>No {approvals?'team requests':'leave applications'} for {fyLabel(data.year)}.</p>:<div className="request-list">{rows.map(r=><article className={'request-card'+(focusedRequest===r.id?' request-focus':'')} key={r.id} id={'request-'+r.id}>
+ function requests(rows:LeaveRequest[],approvals=false){return rows.length===0?<p>No {approvals?'team requests':'leave applications'} for {fyLabel(data.year)}.</p>:<div className="request-list">{rows.map(r=><article className={'request-card'+(focusedRequest===r.id?' request-focus':'')} key={r.id} id={(approvals?'approvals':'leave')+'-request-'+r.id} tabIndex={-1}>
   <div className="ess-section-heading"><h3>{approvals?r.employee_name:titleCase(r.leave_type)+' leave'}{approvals?<span className="muted"> · {r.employee_no}</span>:null}</h3><span className={'status '+r.status}>{titleCase(r.status)}</span></div>
   <p>{displayShortDate(r.start_date)} to {displayShortDate(r.end_date)} · <strong>{r.days} day{r.days===1?'':'s'}</strong>{approvals?' · '+titleCase(r.leave_type):''}</p>
   <p className="request-text">{r.reason}</p>{r.manager_name?<p className="muted">Line manager: {r.manager_name}</p>:null}

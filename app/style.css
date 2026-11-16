@@ -30,6 +30,7 @@ select,textarea{font:inherit;border:1px solid #cfd8e1;border-radius:7px;padding:
 
 .work-shell{max-width:1180px;margin:auto;padding:28px 22px 70px;display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px 28px}
 .work-header{grid-column:1/-1;margin:0;align-items:flex-start}.work-header h1{font-size:28px}.work-header a,.work-shell a{color:#15568e;text-underline-offset:3px}
+.work-shell a.recovery-action{color:#fff}
 .work-sidebar{align-self:start;position:sticky;top:22px}.work-sidebar nav{display:grid;gap:8px}.work-sidebar nav a,.work-sidebar button{padding:14px;text-align:left;min-height:46px;text-decoration:none;border-radius:8px;background:#e9edf2;color:#24384d}.work-sidebar button.selected{background:#15568e;color:#fff}.work-sidebar p{line-height:1.5}
 .work-content{min-width:0}.work-content>section[hidden]{display:none}.work-content h2{margin-top:12px}.work-content .panel{margin:16px 0}.work-content .panel h3{margin-top:0}.work-content input,.work-content select,.work-content textarea{min-height:44px;width:100%}.work-content button:focus-visible,.work-sidebar button:focus-visible,.work-shell a:focus-visible,.work-content input:focus-visible,.work-content select:focus-visible,.work-content textarea:focus-visible{outline:3px solid #b2d6f5;outline-offset:3px}
 .workspace-toolbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}.workspace-toolbar form{display:flex;gap:10px;align-items:flex-end}.workspace-toolbar input{max-width:110px}.workspace-toolbar label{margin:0}
