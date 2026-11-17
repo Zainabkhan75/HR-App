@@ -23,7 +23,7 @@ function FieldList({fields,values}:{fields:readonly (readonly [string,string])[]
 export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,msgboxData,showMsgBox,focusedMessage}:{msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
  const [profile,setProfile]=useState(initialProfile)
  const [tab,setTab]=useState<Tab>(showMsgBox?'msgbox':'profile')
- const [unread,setUnread]=useState(()=>msgboxData?.inbox.filter(message=>!message.read_at).length??0)
+ const [unread,setUnread]=useState(()=>msgboxData?.unread_count??msgboxData?.inbox.filter(message=>!message.read_at).length??0)
  const [draft,setDraft]=useState(()=>contactDraft(initialProfile.contacts))
  const [contactVersion,setContactVersion]=useState(initialProfile.profile_updated_at)
  const [busy,setBusy]=useState(false)
@@ -88,7 +88,9 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
   <nav className="ess-nav" aria-label="Self-service sections">
    {tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}
-   <button type="button" aria-pressed={tab==='msgbox'} className={tab==='msgbox'?'ess-nav-active':''} onClick={()=>setTab('msgbox')}>MsgBox{unread>0?' ('+unread+')':''}</button>
+   <button type="button" aria-pressed={tab==='msgbox'} aria-label={unread>0?'MsgBox, '+unread+' unread '+(unread===1?'message':'messages'):'MsgBox'} className={'msgbox-tab'+(tab==='msgbox'?' ess-nav-active':'')} onClick={()=>setTab('msgbox')}>
+    MsgBox{unread>0&&<span className="msgbox-unread-badge" aria-hidden="true">{unread}</span>}
+   </button>
   </nav>
   <div hidden={tab!=='msgbox'}>
    {msgboxData

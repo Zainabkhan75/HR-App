@@ -33,7 +33,7 @@ export default function Workspace({initialData,initialSection,focusedRequest,foc
  const [holiday,setHoliday]=useState({name:'',from:'',to:'',expected:false})
  const holidays=data.holiday_list??[]
  const [managerTask,setManagerTask]=useState({recipient_user_id:'',title:'',body:''})
- const unread=data.inbox.filter(i=>!i.read_at).length
+ const unread=data.unread_count??data.inbox.filter(i=>!i.read_at).length
  const embeddedMsgBox=embedded&&initialSection==='inbox'
  useEffect(()=>{onUnreadChange?.(unread)},[onUnreadChange,unread])
  const pending=data.approvals.filter(r=>r.status==='pending').length
