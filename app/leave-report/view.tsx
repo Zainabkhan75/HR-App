@@ -76,7 +76,7 @@ export default function LeaveReportView({initialReport, today}: {initialReport: 
   return <main className="shell">
     <header><div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Leave summary report</h1>
       <p>Showing {displayDate(report.from)} to {displayDate(report.to)}. Balances are for the fiscal year, 1 July to 30 June.</p></div>
-      <nav className="head-actions" aria-label="Admin navigation"><a href="/employees">Employee directory</a><a href="/reports">Employee reports</a><a href="/workspace?section=settings">Leave & MsgBox</a></nav>
+      <nav className="head-actions" aria-label="Admin navigation"><a href="/employees">Employee directory</a><a href="/reports">Employee reports</a><a href="/workspace?section=settings">Leave</a><a href="/workspace?section=inbox">MsgBox</a></nav>
     </header>
     <section className="panel">
       <form className="bar" onSubmit={event => { event.preventDefault(); void load() }}>

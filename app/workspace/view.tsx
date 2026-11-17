@@ -133,7 +133,7 @@ export default function Workspace({initialData,initialSection,focusedRequest,foc
  </article>)}</div>}
  const content=<div className={embedded&&!embeddedMsgBox?undefined:"work-content"}>
 
-   {(!embedded||section==='leave')&&<div className="workspace-toolbar"><form onSubmit={e=>{e.preventDefault();const selected=Number(year);if(selected<2020||selected>2100)return;if((form.reason||form.start_date||form.end_date)&&!window.confirm('Change year and clear your unsaved leave application?'))return;void reload(selected)}}><label>Fiscal year starting (July)<input type="number" min={2020} max={2100} required value={year} disabled={busy} onChange={e=>setYear(e.target.value)}/></label><button className="secondary" disabled={busy}>Load year</button></form><button className="secondary" disabled={busy} onClick={()=>void reload()}>{busy?'Please wait...':'Refresh'}</button></div>}
+   {(!embedded||section==='leave')&&<div className="workspace-toolbar">{section!=='inbox'&&<form onSubmit={e=>{e.preventDefault();const selected=Number(year);if(selected<2020||selected>2100)return;if((form.reason||form.start_date||form.end_date)&&!window.confirm('Change year and clear your unsaved leave application?'))return;void reload(selected)}}><label>Fiscal year starting (July)<input type="number" min={2020} max={2100} required value={year} disabled={busy} onChange={e=>setYear(e.target.value)}/></label><button className="secondary" disabled={busy}>Load year</button></form>}<button className="secondary" disabled={busy} onClick={()=>void reload()}>{busy?'Please wait...':'Refresh'}</button></div>}
    {error?<p role="alert" className="error">{error}</p>:null}{notice?<p role="status" className="notice">{notice}</p>:null}
    {embeddedMsgBox&&<div className="workspace-toolbar"><button type="button" className="secondary" disabled={busy} onClick={()=>void reload()}>{busy?'Please wait...':'Refresh messages'}</button></div>}
    <section hidden={section!=='leave'}><div className="ess-section-heading">
@@ -192,6 +192,8 @@ export default function Workspace({initialData,initialSection,focusedRequest,foc
      <label>Employee<select value={assignment.employee_id} onChange={e=>setAssignment({employee_id:e.target.value})}><option value="">Select employee</option>{employees.map(e=><option key={e.id} value={e.id}>{e.employee_no} · {e.name}</option>)}</select></label>
      {assignment.employee_id&&<p>Current: {currentManager?employees.find(e=>e.id===currentManager.manager_employee_id)?.name??'Recorded manager':'No manager assigned'}</p>}
     </div>
+   </section>:null}
+   {data.is_hr?<section hidden={section!=='inbox'}>
     <div className="panel"><h3>Assign a MsgBox task</h3><form onSubmit={e=>{e.preventDefault();void run('leave_admin','task',task,'Task added to the employee’s MsgBox.',()=>setTask(old=>({...old,title:'',body:''})))}}><label>Employee<select required value={task.recipient_user_id} disabled={busy} onChange={e=>setTask(old=>({...old,recipient_user_id:e.target.value}))}><option value="">Select active employee</option>{employees.filter(e=>e.account_active&&e.user_id).map(e=><option key={e.id} value={e.user_id!}>{e.employee_no} · {e.name}</option>)}</select></label><label>Title<input required maxLength={200} disabled={busy} value={task.title} onChange={e=>setTask(old=>({...old,title:e.target.value}))}/></label><label>Task details<textarea maxLength={2000} rows={3} disabled={busy} value={task.body} onChange={e=>setTask(old=>({...old,body:e.target.value}))}/></label><button disabled={busy||uncertain}>Assign task</button></form></div>
     <div className="panel"><h3>Message alerts</h3>
      <ul>{data.email_queue?.map(item=><li key={item.id}>
@@ -209,8 +211,18 @@ export default function Workspace({initialData,initialSection,focusedRequest,foc
   {content}
  </main>
  return <main className="work-shell">
-  <header className="work-header"><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Leave & MsgBox</h1><p>Requests, decisions and tasks in one place.</p></div><a href={data.is_hr?'/employees':'/portal'}>Back to {data.is_hr?'HR directory':'my profile'}</a></header>
-  <aside className="work-sidebar"><nav aria-label="Employee workspace"><a href={data.is_hr?'/employees':'/portal'}>{data.is_hr?'Employee directory':'My profile'}</a>{(['leave','inbox','approvals',...(data.is_hr?['settings']:[])] as Section[]).map(key=><button key={key} type="button" aria-current={section===key?'page':undefined} className={section===key?'selected':''} onClick={()=>setSection(key)}>{key==='leave'?'Leave application':key==='inbox'?'MsgBox'+(unread?' ('+unread+')':''):key==='approvals'?(data.is_hr?'Leave overview':'Manager approvals')+(pending?' ('+pending+')':''):'HR setup'}</button>)}</nav>{data.is_hr&&<p><a href="/leave-report">Leave summary report</a></p>}<p className="muted">Requests and decisions appear in your MsgBox.</p></aside>
+  <header className="work-header"><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>{section==='inbox'?'MsgBox':'Leave'}</h1></div><a href={data.is_hr?'/employees':'/portal'}>Back to {data.is_hr?'HR directory':'my profile'}</a></header>
+  <aside className="work-sidebar">
+   <nav aria-label={section==='inbox'?'MsgBox navigation':'Leave navigation'}>
+    <a href="/employees">Employee directory</a>
+    {section==='inbox'?<a href="/workspace?section=settings">Leave</a>:
+     (['leave','approvals','settings'] as const).map(key=><button key={key} type="button" aria-current={section===key?'page':undefined} className={section===key?'selected':''} onClick={()=>setSection(key)}>
+      {key==='leave'?'Leave application':key==='approvals'?'Leave overview'+(pending?' ('+pending+')':''):'HR setup'}
+     </button>)}
+    <a href="/workspace?section=inbox" aria-current={section==='inbox'?'page':undefined}>MsgBox{unread?' ('+unread+')':''}</a>
+   </nav>
+   {section!=='inbox'&&<p><a href="/leave-report">Leave summary report</a></p>}
+  </aside>
   {content}
  </main>
 }
