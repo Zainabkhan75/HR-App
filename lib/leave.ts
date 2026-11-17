@@ -8,7 +8,7 @@ export type InboxItem={id:string;kind:'leave_request'|'leave_decision'|'task'|'a
 export type EmployeeOption={id:string;name:string;employee_no:string;designation:string|null;account_active:boolean;is_manager:boolean;user_id:string|null}
 export type Opening={employee_id:string;year:number;leave_type:LeaveType;entitlement:number;taken:number;confirmed_at:string}
 export type Holiday={date:string;name:string;needs_review:boolean;carried_forward:boolean}
-export type WorkspaceData={holiday_list?:Holiday[];is_hr:boolean;pilot_applicant?:boolean;employee_id:string|null;year:number;policy:Policy|null;manager:{name:string;designation:string|null;ready:boolean}|null;balances:Balance[];requests:LeaveRequest[];approvals:LeaveRequest[];inbox:InboxItem[];employees?:EmployeeOption[];links?:{manager_employee_id:string;member_employee_id:string}[];openings?:Opening[];team?:EmployeeOption[];email_queue?:{id:string;subject:string;status:string;created_at:string;pilot?:boolean}[]}
+export type WorkspaceData={holiday_list?:Holiday[];is_hr:boolean;msgbox_only?:boolean;pilot_applicant?:boolean;employee_id:string|null;year:number;policy:Policy|null;manager:{name:string;designation:string|null;ready:boolean}|null;balances:Balance[];requests:LeaveRequest[];approvals:LeaveRequest[];inbox:InboxItem[];employees?:EmployeeOption[];links?:{manager_employee_id:string;member_employee_id:string}[];openings?:Opening[];team?:EmployeeOption[];email_queue?:{id:string;subject:string;status:string;created_at:string;pilot?:boolean}[]}
 export function employeeLeaveData(data:WorkspaceData):WorkspaceData{
  const {pilot_applicant,employee_id,year,policy,manager,balances,requests,holiday_list}=data
  return {is_hr:false,holiday_list,pilot_applicant,employee_id,year,policy,manager,balances,requests,approvals:[],inbox:[]}
@@ -26,6 +26,15 @@ export function countLeaveDays(start:string,end:string,policy:Policy):number|nul
  return count
 }
 export function safeWorkspaceNext(value:string|null):string|null{
- if(!value||!value.startsWith('/workspace')||/[\\\r\n]/.test(value))return null
- try{const u=new URL(value,'https://local.invalid');return u.origin==='https://local.invalid'&&u.pathname==='/workspace'?u.pathname+u.search:null}catch{return null}
+ if(!value||(!value.startsWith('/workspace')&&!value.startsWith('/portal?'))||/[\\\r\n]/.test(value))return null
+ try{
+  const u=new URL(value,'https://local.invalid')
+  if(u.origin!=='https://local.invalid')return null
+  if(u.pathname==='/workspace')return u.pathname+u.search
+  if(u.pathname==='/portal'&&u.searchParams.get('section')==='msgbox'){
+   const message=u.searchParams.get('message')
+   return '/portal?section=msgbox'+(message&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(message)?'&message='+message:'')
+  }
+  return null
+ }catch{return null}
 }

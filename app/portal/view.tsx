@@ -13,16 +13,17 @@ import {formatMoneyField} from '../../lib/money'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
 const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','My Payslip']] as const
-type Tab=typeof tabs[number][0]|'leave'
+type Tab=typeof tabs[number][0]|'msgbox'
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
 function FieldList({fields,values}:{fields:readonly (readonly [string,string])[];values:Values}){
  return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(formatMoneyField(key,values[key]))}</dd></div>)}</dl>
 }
 
-export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,leaveData}:{leaveData?:WorkspaceData;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
+export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,msgboxData,showMsgBox,focusedMessage}:{msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
  const [profile,setProfile]=useState(initialProfile)
- const [tab,setTab]=useState<Tab>('profile')
+ const [tab,setTab]=useState<Tab>(showMsgBox?'msgbox':'profile')
+ const [unread,setUnread]=useState(()=>msgboxData?.inbox.filter(message=>!message.read_at).length??0)
  const [draft,setDraft]=useState(()=>contactDraft(initialProfile.contacts))
  const [contactVersion,setContactVersion]=useState(initialProfile.profile_updated_at)
  const [busy,setBusy]=useState(false)
@@ -87,11 +88,13 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
   <nav className="ess-nav" aria-label="Self-service sections">
    {tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}
-   {leaveData&&<button type="button" aria-pressed={tab==='leave'} className={tab==='leave'?'ess-nav-active':''} onClick={()=>setTab('leave')}>Leave</button>}
+   <button type="button" aria-pressed={tab==='msgbox'} className={tab==='msgbox'?'ess-nav-active':''} onClick={()=>setTab('msgbox')}>MsgBox{unread>0?' ('+unread+')':''}</button>
   </nav>
-  {leaveData&&<div hidden={tab!=='leave'}>
-   <Workspace initialData={leaveData} initialSection="leave" employee={employee} embedded/>
-  </div>}
+  <div hidden={tab!=='msgbox'}>
+   {msgboxData
+    ?<Workspace initialData={msgboxData} initialSection="inbox" focusedMessage={focusedMessage} onUnreadChange={setUnread} embedded/>
+    :<section className="panel"><h2>MsgBox</h2><p>Could not load your messages. Please refresh the dashboard.</p></section>}
+  </div>
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div className="panel"><p>Reloading will clear your unsaved contact changes.</p><button type="button" disabled={busy} onClick={()=>void reloadProfile()}>Reload latest profile</button></div>:null}

@@ -10,17 +10,19 @@ import {fyLabel,previewHeadOfficeLeave} from '../../lib/head-office-leave'
 import type {WorkspaceData,LeaveRequest,LeaveType,ApplicationLeaveType} from '../../lib/leave'
 type Section='leave'|'inbox'|'approvals'|'settings'
 type Payload=Record<string,unknown>
-export default function Workspace({initialData,initialSection,focusedRequest,embedded=false,employee}:{employee?:EmployeeProfile['employee'];embedded?:boolean;initialData:WorkspaceData;initialSection:string;focusedRequest?:string}){
+export default function Workspace({initialData,initialSection,focusedRequest,focusedMessage,onUnreadChange,embedded=false,employee}:{employee?:EmployeeProfile['employee'];embedded?:boolean;initialData:WorkspaceData;initialSection:string;focusedRequest?:string;focusedMessage?:string;onUnreadChange?:(unread:number)=>void}){
  const [data,setData]=useState(initialData),[section,setSection]=useState<Section>(initialSection==='settings'&&!initialData.is_hr?'leave':initialSection as Section)
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[uncertain,setUncertain]=useState(false)
  const lock=useRef(false)
  const [year,setYear]=useState(String(initialData.year))
  useEffect(()=>{
-  if(!focusedRequest||(section!=='approvals'&&section!=='leave'))return
-  const request=document.getElementById(section+'-request-'+focusedRequest)
-  request?.focus({preventScroll:true})
-  request?.scrollIntoView({block:'center'})
- },[focusedRequest,section])
+  const target=section==='inbox'&&focusedMessage?'message-'+focusedMessage:
+   focusedRequest&&(section==='approvals'||section==='leave')?section+'-request-'+focusedRequest:null
+  if(!target)return
+  const card=document.getElementById(target)
+  card?.focus({preventScroll:true})
+  card?.scrollIntoView({block:'center'})
+ },[focusedRequest,focusedMessage,section])
  const [form,setForm]=useState({leave_type:'annual' as ApplicationLeaveType,start_date:'',end_date:'',reason:'',hours:undefined as 2|4|undefined})
  const [notes,setNotes]=useState<Record<string,string>>({})
  const [cancellation,setCancellation]=useState<{id:string;reason:string}|null>(null)
@@ -32,6 +34,8 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
  const holidays=data.holiday_list??[]
  const [managerTask,setManagerTask]=useState({recipient_user_id:'',title:'',body:''})
  const unread=data.inbox.filter(i=>!i.read_at).length
+ const embeddedMsgBox=embedded&&initialSection==='inbox'
+ useEffect(()=>{onUnreadChange?.(unread)},[onUnreadChange,unread])
  const pending=data.approvals.filter(r=>r.status==='pending').length
  const balance=data.balances.find(b=>b.type===form.leave_type)
  // July–June rules now apply to every applicant; pilot_applicant only decides who sees the application form.
@@ -54,9 +58,9 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
  }
  const canSubmit=!!data.employee_id&&!!data.policy&&!!data.manager?.ready&&(!needsBalance||!!balance?.verified)&&!busy&&!uncertain
  async function refresh(selectedYear=data.year){
-  const {data:loaded,error:failure}=await browserDb().rpc('leave_workspace',{p_year:selectedYear})
+  const {data:loaded,error:failure}=await browserDb().rpc(data.msgbox_only?'msgbox_workspace':'leave_workspace',{p_year:selectedYear})
   if(failure||!loaded)throw Error('Could not reload leave and inbox details. Please try Refresh again.')
-  const result=embedded?employeeLeaveData(loaded as WorkspaceData):loaded as WorkspaceData
+  const result=embedded&&!embeddedMsgBox?employeeLeaveData(loaded as WorkspaceData):loaded as WorkspaceData
   setData(result);setYear(String(result.year));setUncertain(false)
   return result
  }
@@ -77,22 +81,6 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
    try{await refresh()}catch(e){setUncertain(true);setError(e instanceof Error?e.message:'Refresh failed.')}
   }catch{setUncertain(true);setError('Connection interrupted. Refresh to check whether your action was saved before trying again.')}
   finally{lock.current=false;setBusy(false)}
- }
- async function sendPilotEmail(id:string){
-  if(lock.current||uncertain)return
-  lock.current=true;setBusy(true);setError('');setNotice('')
-  try{
-   const response=await fetch('/api/admin/leave-pilot-email',{
-    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id}),
-   })
-   const result=await response.json()
-   if(!response.ok)setError(result.error??'Could not send the pilot notification.')
-   else setNotice('Resend accepted the pilot notification.')
-   await refresh()
-  }catch{
-   setUncertain(true)
-   setError('Could not confirm the latest email status. Refresh before retrying.')
-  }finally{lock.current=false;setBusy(false)}
  }
  async function reload(selectedYear=data.year){
   if(lock.current)return
@@ -134,7 +122,7 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
    }}>
     <label>Reason for cancellation<textarea required maxLength={1800} rows={2} value={cancellation.reason} disabled={busy||uncertain}
      onChange={e=>setCancellation({id:r.id,reason:e.target.value})}/></label>
-    <p className="muted">This releases the charged days, where applicable, and records the reason for the employee’s Inbox.</p>
+    <p className="muted">This releases the charged days, where applicable, and records the reason for the employee’s MsgBox.</p>
     <div className="ess-form-actions">
      <button type="submit" disabled={busy||uncertain||!cancellation.reason.trim()}>Confirm cancellation</button>
      <button type="button" className="secondary" disabled={busy} onClick={()=>setCancellation(null)}>Keep approved</button>
@@ -143,10 +131,11 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
     onClick={()=>setCancellation({id:r.id,reason:''})}>Cancel approved leave</button>
   )}
  </article>)}</div>}
- const content=<div className={embedded?undefined:"work-content"}>
+ const content=<div className={embedded&&!embeddedMsgBox?undefined:"work-content"}>
 
    {(!embedded||section==='leave')&&<div className="workspace-toolbar"><form onSubmit={e=>{e.preventDefault();const selected=Number(year);if(selected<2020||selected>2100)return;if((form.reason||form.start_date||form.end_date)&&!window.confirm('Change year and clear your unsaved leave application?'))return;void reload(selected)}}><label>Fiscal year starting (July)<input type="number" min={2020} max={2100} required value={year} disabled={busy} onChange={e=>setYear(e.target.value)}/></label><button className="secondary" disabled={busy}>Load year</button></form><button className="secondary" disabled={busy} onClick={()=>void reload()}>{busy?'Please wait...':'Refresh'}</button></div>}
    {error?<p role="alert" className="error">{error}</p>:null}{notice?<p role="status" className="notice">{notice}</p>:null}
+   {embeddedMsgBox&&<div className="workspace-toolbar"><button type="button" className="secondary" disabled={busy} onClick={()=>void reload()}>{busy?'Please wait...':'Refresh messages'}</button></div>}
    <section hidden={section!=='leave'}><div className="ess-section-heading">
      <h2>My leave · {fyLabel(data.year)}</h2>
     </div>
@@ -190,11 +179,11 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
      <button disabled={!canSubmit}>Submit leave application</button></form>
     </div>}<h3>My Leave Requests</h3>{requests(data.requests)}</>}
    </section>
-   {!embedded&&<><section hidden={section!=='inbox'}><h2>Inbox</h2><p>Leave requests, decisions and assigned tasks. {unread} unread.</p>{data.inbox.length===0?<div className="panel"><p>Your inbox is empty.</p></div>:<div className="request-list">{data.inbox.map(item=><article className={'request-card'+(!item.read_at?' inbox-unread':'')} key={item.id}><div className="ess-section-heading"><h3>{item.title}</h3><span className="status">{item.completed_at?'Completed':!item.read_at?'Unread':'Read'}</span></div><p className="request-text">{item.body}</p><p className="muted">{item.created_at.slice(0,10)} · {item.kind.replaceAll('_',' ')}</p><div className="ess-form-actions">{item.request_id?<a className="recovery-action" href={'/workspace?section='+(item.kind==='leave_request'?'approvals':'leave')+'&year='+(item.request_year??data.year)+'&request='+item.request_id}>Open request</a>:null}{!item.read_at?<button className="secondary" disabled={busy||uncertain} onClick={()=>void run('leave_action','read',{id:item.id},'Marked as read.')}>Mark as read</button>:null}{item.kind==='task'&&!item.completed_at?<button disabled={busy||uncertain} onClick={()=>void run('leave_action','complete',{id:item.id},'Task marked complete.')}>Mark task complete</button>:null}</div></article>)}</div>}<p className="muted">Showing the latest 200 inbox items.</p></section>
-   <section hidden={section!=='approvals'}><h2>{data.is_hr?'Leave overview':'Manager approvals'}</h2><p>{data.is_hr?'HR can monitor all requests. Decisions are made by the line manager and the Head of Department.':'Only requests assigned to you through a verified reporting relationship appear here.'}</p>{requests(data.approvals,true)}{(data.team?.length??0)>0?<div className="panel"><h3>Assign a team task</h3><form onSubmit={e=>{e.preventDefault();void run('leave_action','task',managerTask,'Task added to your team member’s Inbox.',()=>setManagerTask(old=>({...old,title:'',body:''})))}}><label>Team member<select required value={managerTask.recipient_user_id} disabled={busy} onChange={e=>setManagerTask(old=>({...old,recipient_user_id:e.target.value}))}><option value="">Select direct report</option>{data.team?.filter(e=>e.account_active&&e.user_id).map(e=><option key={e.id} value={e.user_id!}>{e.employee_no} · {e.name}</option>)}</select></label><label>Title<input required maxLength={200} disabled={busy} value={managerTask.title} onChange={e=>setManagerTask(old=>({...old,title:e.target.value}))}/></label><label>Task details<textarea maxLength={2000} rows={3} disabled={busy} value={managerTask.body} onChange={e=>setManagerTask(old=>({...old,body:e.target.value}))}/></label><button disabled={busy||uncertain}>Assign task</button></form></div>:null}</section>
+   {(!embedded||embeddedMsgBox)&&<section hidden={section!=='inbox'}><h2>MsgBox</h2><p>All your messages, including leave updates and assigned tasks. {unread} unread.</p>{data.inbox.length===0?<div className="panel"><p>Your MsgBox is empty.</p></div>:<div className="request-list">{data.inbox.map(item=><article className={'request-card'+(!item.read_at?' inbox-unread':'')+(focusedMessage===item.id?' request-focus':'')} key={item.id} id={'message-'+item.id} tabIndex={-1}><div className="ess-section-heading"><h3>{item.title}</h3><span className="status">{item.completed_at?'Completed':!item.read_at?'Unread':'Read'}</span></div><p className="request-text">{item.body}</p><p className="muted">{item.created_at.slice(0,10)} · {item.kind.replaceAll('_',' ')}</p><div className="ess-form-actions">{item.request_id&&(!embeddedMsgBox||item.kind==='leave_request')?<a className="recovery-action" href={'/workspace?section='+(item.kind==='leave_request'?'approvals':'leave')+'&year='+(item.request_year??data.year)+'&request='+item.request_id}>Open request</a>:null}{!item.read_at?<button className="secondary" disabled={busy||uncertain} onClick={()=>void run('leave_action','read',{id:item.id},'Marked as read.')}>Mark as read</button>:null}{item.kind==='task'&&!item.completed_at?<button disabled={busy||uncertain} onClick={()=>void run('leave_action','complete',{id:item.id},'Task marked complete.')}>Mark task complete</button>:null}</div></article>)}</div>}<p className="muted">Showing the latest 200 messages.</p></section>}
+   {!embedded&&<><section hidden={section!=='approvals'}><h2>{data.is_hr?'Leave overview':'Manager approvals'}</h2><p>{data.is_hr?'HR can monitor all requests. Decisions are made by the line manager and the Head of Department.':'Only requests assigned to you through a verified reporting relationship appear here.'}</p>{requests(data.approvals,true)}{(data.team?.length??0)>0?<div className="panel"><h3>Assign a team task</h3><form onSubmit={e=>{e.preventDefault();void run('leave_action','task',managerTask,'Task added to your team member’s MsgBox.',()=>setManagerTask(old=>({...old,title:'',body:''})))}}><label>Team member<select required value={managerTask.recipient_user_id} disabled={busy} onChange={e=>setManagerTask(old=>({...old,recipient_user_id:e.target.value}))}><option value="">Select direct report</option>{data.team?.filter(e=>e.account_active&&e.user_id).map(e=><option key={e.id} value={e.user_id!}>{e.employee_no} · {e.name}</option>)}</select></label><label>Title<input required maxLength={200} disabled={busy} value={managerTask.title} onChange={e=>setManagerTask(old=>({...old,title:e.target.value}))}/></label><label>Task details<textarea maxLength={2000} rows={3} disabled={busy} value={managerTask.body} onChange={e=>setManagerTask(old=>({...old,body:e.target.value}))}/></label><button disabled={busy||uncertain}>Assign task</button></form></div>:null}</section>
    {data.is_hr?<section hidden={section!=='settings'}><h2>HR setup</h2>
     <div className="panel"><h3>Leave policy · {fyLabel(data.year)}</h3><p>Default entitlements for the fiscal year, 1 July to 30 June. These defaults and the day-counting rule are locked once the year has requests; individual balances can still be corrected below. Public holidays are managed separately in the next panel.</p><form onSubmit={e=>{e.preventDefault();void run('leave_admin','policy',{year:data.year,annual:Number(policy.annual),sick:Number(policy.sick),casual:Number(policy.casual),weekdays_only:policy.weekdays_only},'Leave policy saved.')}}><div className="family-fields">{leaveTypes.map(t=><label key={t}>{titleCase(t)} entitlement<input type="number" required min={0} step={1} value={policy[t]} disabled={busy} onChange={e=>setPolicy(old=>({...old,[t]:e.target.value}))}/></label>)}<label>Count days<select value={policy.weekdays_only?'weekdays':'calendar'} disabled={busy} onChange={e=>setPolicy(old=>({...old,weekdays_only:e.target.value==='weekdays'}))}><option value="weekdays">Monday–Friday only</option><option value="calendar">All calendar days</option></select></label></div><button disabled={busy||uncertain}>Save policy</button></form></div>
-    <div className="panel"><h3>Public holidays · {fyLabel(data.year)}</h3><p>Holidays are excluded from working-day leave. Add or delete dates at any time. Leave from today onwards is re-counted automatically and affected employees are told in their Inbox. If nothing is saved for a fiscal year, the previous year’s dates carry forward on the same day and month and are marked for review.</p>
+    <div className="panel"><h3>Public holidays · {fyLabel(data.year)}</h3><p>Holidays are excluded from working-day leave. Add or delete dates at any time. Leave from today onwards is re-counted automatically and affected employees are told in their MsgBox. If nothing is saved for a fiscal year, the previous year’s dates carry forward on the same day and month and are marked for review.</p>
      {holidays.length===0?<p>No holidays recorded for this fiscal year.</p>:<div className="tablewrap"><table><thead><tr><th scope="col">Date</th><th scope="col">Holiday</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>{holidays.map(h=><tr key={h.date}><td>{displayShortDate(h.date)}</td><td>{h.name}</td><td>{h.carried_forward?'Carried forward · review':h.needs_review?'Expected · review':'Confirmed'}</td><td className="actions">{h.needs_review&&<button type="button" className="secondary" disabled={busy||uncertain} onClick={()=>void run('leave_admin','holiday_confirm',{year:data.year,date:h.date},'Holiday confirmed.')}>Confirm</button>} <button type="button" className="secondary" disabled={busy||uncertain} onClick={()=>{if(window.confirm('Delete '+h.name+' on '+displayShortDate(h.date)+'? Leave covering this date will be re-counted.'))void run('leave_admin','holiday_delete',{year:data.year,date:h.date},'Holiday deleted. Affected leave re-counted.')}}>Delete</button></td></tr>)}</tbody></table></div>}
      <form onSubmit={e=>{e.preventDefault();void run('leave_admin','holiday_add',{year:data.year,name:holiday.name,from:holiday.from,to:holiday.to||holiday.from,needs_review:holiday.expected},'Holiday saved. Affected leave re-counted.',()=>setHoliday({name:'',from:'',to:'',expected:false}))}}><div className="family-fields"><label>Holiday name<input required maxLength={80} value={holiday.name} disabled={busy} onChange={e=>setHoliday(old=>({...old,name:e.target.value}))}/></label><label>Date<DateInput required referenceYear={data.year} min={minDate} max={maxDate} value={holiday.from} disabled={busy} onChange={value=>setHoliday(old=>({...old,from:value}))}/></label><label>Last day (only for a holiday of several days)<DateInput referenceYear={data.year} min={/^\d{4}-\d{2}-\d{2}$/.test(holiday.from)?holiday.from:minDate} max={maxDate} value={holiday.to} disabled={busy} onChange={value=>setHoliday(old=>({...old,to:value}))}/></label></div><label><input type="checkbox" checked={holiday.expected} disabled={busy} onChange={e=>setHoliday(old=>({...old,expected:e.target.checked}))}/> Expected date, subject to moon sighting</label><button disabled={busy||uncertain}>Add holiday</button></form></div>
     <div className="panel"><h3>Verify opening balance</h3><p>Enter leave already taken before using this app. Do not include approved requests already listed in the app. Confirm each leave type for each employee; no employee history is created automatically.</p><form onSubmit={e=>{e.preventDefault();void run('leave_admin','opening',{year:data.year,...opening,entitlement:Number(opening.entitlement),taken:Number(opening.taken)},'Opening balance verified.')}}><label>Employee<select required value={opening.employee_id} disabled={busy} onChange={e=>selectOpeningEmployee(e.target.value)}><option value="">Select employee</option>{employees.map(e=><option key={e.id} value={e.id}>{e.employee_no} · {e.name}</option>)}</select></label><div className="family-fields"><label>Leave type<select value={opening.leave_type} disabled={busy} onChange={e=>openingEmployee(opening.employee_id,e.target.value as LeaveType)}>{leaveTypes.map(t=><option key={t} value={t}>{titleCase(t)}</option>)}</select></label><label>Total entitlement<input type="number" min={0} step={1} required disabled={busy} value={opening.entitlement} onChange={e=>setOpening(old=>({...old,entitlement:e.target.value}))}/></label><label>Opening days already taken<input type="number" min={0} step={1} required disabled={busy} value={opening.taken} placeholder="Enter verified usage, including 0" onChange={e=>setOpening(old=>({...old,taken:e.target.value}))}/></label></div>{currentOpening?<p className="muted">Last confirmed: {currentOpening.confirmed_at.slice(0,10)}. Current opening usage: {currentOpening.taken}.</p>:null}<button disabled={busy||uncertain||!data.policy}>Confirm opening balance</button></form></div>
@@ -203,22 +192,25 @@ export default function Workspace({initialData,initialSection,focusedRequest,emb
      <label>Employee<select value={assignment.employee_id} onChange={e=>setAssignment({employee_id:e.target.value})}><option value="">Select employee</option>{employees.map(e=><option key={e.id} value={e.id}>{e.employee_no} · {e.name}</option>)}</select></label>
      {assignment.employee_id&&<p>Current: {currentManager?employees.find(e=>e.id===currentManager.manager_employee_id)?.name??'Recorded manager':'No manager assigned'}</p>}
     </div>
-    <div className="panel"><h3>Assign an Inbox task</h3><form onSubmit={e=>{e.preventDefault();void run('leave_admin','task',task,'Task added to the employee’s Inbox. Email is waiting for setup.',()=>setTask(old=>({...old,title:'',body:''})))}}><label>Employee<select required value={task.recipient_user_id} disabled={busy} onChange={e=>setTask(old=>({...old,recipient_user_id:e.target.value}))}><option value="">Select active employee</option>{employees.filter(e=>e.account_active&&e.user_id).map(e=><option key={e.id} value={e.user_id!}>{e.employee_no} · {e.name}</option>)}</select></label><label>Title<input required maxLength={200} disabled={busy} value={task.title} onChange={e=>setTask(old=>({...old,title:e.target.value}))}/></label><label>Task details<textarea maxLength={2000} rows={3} disabled={busy} value={task.body} onChange={e=>setTask(old=>({...old,body:e.target.value}))}/></label><button disabled={busy||uncertain}>Assign task</button></form></div>
-    <div className="panel"><h3>Email notifications</h3><p>HR can send pilot notifications to the agreed test inbox. In-app approvals work independently of email.</p>
-     <ul>{data.email_queue?.filter(item=>item.pilot).map(item=><li key={item.id}>
+    <div className="panel"><h3>Assign a MsgBox task</h3><form onSubmit={e=>{e.preventDefault();void run('leave_admin','task',task,'Task added to the employee’s MsgBox.',()=>setTask(old=>({...old,title:'',body:''})))}}><label>Employee<select required value={task.recipient_user_id} disabled={busy} onChange={e=>setTask(old=>({...old,recipient_user_id:e.target.value}))}><option value="">Select active employee</option>{employees.filter(e=>e.account_active&&e.user_id).map(e=><option key={e.id} value={e.user_id!}>{e.employee_no} · {e.name}</option>)}</select></label><label>Title<input required maxLength={200} disabled={busy} value={task.title} onChange={e=>setTask(old=>({...old,title:e.target.value}))}/></label><label>Task details<textarea maxLength={2000} rows={3} disabled={busy} value={task.body} onChange={e=>setTask(old=>({...old,body:e.target.value}))}/></label><button disabled={busy||uncertain}>Assign task</button></form></div>
+    <div className="panel"><h3>Message alerts</h3>
+     <ul>{data.email_queue?.map(item=><li key={item.id}>
       {item.subject} · {item.status.replaceAll('_',' ')}
-      {['waiting_for_setup','failed','sending'].includes(item.status)&&<button type="button" className="secondary" disabled={busy||uncertain} onClick={()=>void sendPilotEmail(item.id)}>{item.status==='waiting_for_setup'?'Send pilot email':'Retry pilot email'}</button>}
      </li>)}</ul></div>
    </section>:null}</>}
   </div>
  if(embedded)return content
  if(!data.is_hr)return <main className="mobile-shell ess-shell">
   <p><a href="/portal">Back to my employee portal</a></p>
+  {!data.msgbox_only&&<nav className="ess-nav" aria-label="Employee workspace">
+   <button type="button" onClick={()=>{window.location.href='/portal?section=msgbox'}}>MsgBox{unread>0?' ('+unread+')':''}</button>
+   <button type="button" aria-pressed={section==='approvals'} onClick={()=>setSection('approvals')}>Approvals</button>
+  </nav>}
   {content}
  </main>
  return <main className="work-shell">
-  <header className="work-header"><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Leave & Inbox</h1><p>Requests, decisions and tasks in one place.</p></div><a href={data.is_hr?'/employees':'/portal'}>Back to {data.is_hr?'HR directory':'my profile'}</a></header>
-  <aside className="work-sidebar"><nav aria-label="Employee workspace"><a href={data.is_hr?'/employees':'/portal'}>{data.is_hr?'Employee directory':'My profile'}</a>{(['leave','inbox','approvals',...(data.is_hr?['settings']:[])] as Section[]).map(key=><button key={key} type="button" aria-current={section===key?'page':undefined} className={section===key?'selected':''} onClick={()=>setSection(key)}>{key==='leave'?'Leave application':key==='inbox'?'Inbox'+(unread?' ('+unread+')':''):key==='approvals'?(data.is_hr?'Leave overview':'Manager approvals')+(pending?' ('+pending+')':''):'HR setup'}</button>)}</nav>{data.is_hr&&<p><a href="/leave-report">Leave summary report</a></p>}<p className="muted">Requests and decisions appear in your Inbox.</p></aside>
+  <header className="work-header"><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Leave & MsgBox</h1><p>Requests, decisions and tasks in one place.</p></div><a href={data.is_hr?'/employees':'/portal'}>Back to {data.is_hr?'HR directory':'my profile'}</a></header>
+  <aside className="work-sidebar"><nav aria-label="Employee workspace"><a href={data.is_hr?'/employees':'/portal'}>{data.is_hr?'Employee directory':'My profile'}</a>{(['leave','inbox','approvals',...(data.is_hr?['settings']:[])] as Section[]).map(key=><button key={key} type="button" aria-current={section===key?'page':undefined} className={section===key?'selected':''} onClick={()=>setSection(key)}>{key==='leave'?'Leave application':key==='inbox'?'MsgBox'+(unread?' ('+unread+')':''):key==='approvals'?(data.is_hr?'Leave overview':'Manager approvals')+(pending?' ('+pending+')':''):'HR setup'}</button>)}</nav>{data.is_hr&&<p><a href="/leave-report">Leave summary report</a></p>}<p className="muted">Requests and decisions appear in your MsgBox.</p></aside>
   {content}
  </main>
 }

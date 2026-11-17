@@ -3,10 +3,11 @@ import {serverSupabase} from '../../lib/server'
 import Workspace from './view'
 import LeavePreview from './leave-preview'
 import type {WorkspaceData} from '../../lib/leave'
-export default async function WorkspacePage({searchParams}:{searchParams:Promise<{section?:string;request?:string;year?:string}>}){
+export default async function WorkspacePage({searchParams}:{searchParams:Promise<{section?:string;request?:string;message?:string;year?:string}>}){
  const params=await searchParams
  const section=['leave','inbox','approvals','settings','leave-preview'].includes(params.section??'')?params.section!:'leave'
  const request=/^[0-9a-f-]{36}$/i.test(params.request??'')?params.request:undefined
+ const message=/^[0-9a-f-]{36}$/i.test(params.message??'')?params.message:undefined
  const dateParts=new Intl.DateTimeFormat('en',{year:'numeric',month:'numeric',timeZone:'Asia/Karachi'}).formatToParts(new Date())
  const thisYear=Number(dateParts.find(part=>part.type==='year')?.value)
  const month=Number(dateParts.find(part=>part.type==='month')?.value)
@@ -14,14 +15,17 @@ export default async function WorkspacePage({searchParams}:{searchParams:Promise
  const fiscalYear=month<7?thisYear-1:thisYear
  const year=Number(params.year)||fiscalYear
  const selectedYear=Number.isInteger(year)&&year>=2020&&year<=2100?year:fiscalYear
- const next='/workspace?section='+section+(params.year?'&year='+selectedYear:'')+(request?'&request='+request:'')
+ const next='/workspace?section='+section+(params.year?'&year='+selectedYear:'')+(request?'&request='+request:'')+(message?'&message='+message:'')
  const db=await serverSupabase();const {data:{user}}=await db.auth.getUser()
  if(!user)redirect('/login?next='+encodeURIComponent(next))
- const {data,error}=await db.rpc('leave_workspace',{p_year:selectedYear})
+ const workspace=await db.rpc('leave_workspace',{p_year:selectedYear})
+ if(section==='inbox'&&(workspace.data?.is_hr===false||workspace.error?.code==='42501'))
+  redirect('/portal?section=msgbox'+(message?'&message='+message:''))
+ const {data,error}=workspace
  if(section==='leave-preview'&&data?.is_hr)return <main className="mobile-shell"><LeavePreview/><a href="/workspace?section=settings">Back to leave settings</a></main>
- if(error||!data)return <main className="mobile-shell"><h1>Leave & Inbox unavailable</h1><p>{error?.code==='42501'?'An active employee account with password setup complete, or HR administrator access, is required.':'We could not load leave details. Please try again.'}</p><a href="/portal">Back to employee portal</a></main>
+ if(error||!data)return <main className="mobile-shell"><h1>Leave & MsgBox unavailable</h1><p>{error?.code==='42501'?'An active employee account with password setup complete, or HR administrator access, is required.':'We could not load leave details. Please try again.'}</p><a href="/portal">Back to employee portal</a></main>
  return <>
   {section==='settings' && data.is_hr && <div className="mobile-shell"><a href="/workspace?section=leave-preview">Preview the Head Office leave form</a></div>}
-  <Workspace initialData={data as WorkspaceData} initialSection={section==='leave-preview'?'leave':section} focusedRequest={request}/>
+  <Workspace initialData={data as WorkspaceData} initialSection={section==='leave-preview'?'leave':section} focusedRequest={request} focusedMessage={message}/>
  </>
 }

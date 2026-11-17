@@ -17,6 +17,10 @@ export async function POST(request:Request){
  if(!key||!process.env.SUPABASE_SERVICE_ROLE_KEY)return json({error:'Pilot email is not configured'},503)
 
  const db=serviceDb()
+ const {data:legacy,error:lookupError}=await db.from('workflow_email_outbox')
+  .select('id').eq('id',input.id).eq('automatic',false).maybeSingle()
+ if(lookupError)return json({error:'Could not verify the pilot notification'},500)
+ if(!legacy)return json({error:'This notification is not eligible for pilot delivery'},409)
  const {data:item,error:claimError}=await db.rpc('claim_leave_pilot_email',{p_id:input.id}).maybeSingle()
  if(claimError)return json({error:'Could not claim the pilot notification'},500)
  if(!item)return json({error:'This notification is not eligible for pilot delivery or retry'},409)

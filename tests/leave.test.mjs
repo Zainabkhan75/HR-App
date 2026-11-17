@@ -35,5 +35,8 @@ test('available leave deducts opening, approved and pending days once',()=>{
 })
 test('approval sign-in return path cannot redirect outside the workspace',()=>{
  assert.equal(helpers.safeWorkspaceNext('/workspace?section=approvals&request=synthetic'),'/workspace?section=approvals&request=synthetic')
+ assert.equal(helpers.safeWorkspaceNext('/portal?section=msgbox&message=12345678-1234-1234-1234-123456789abc'),'/portal?section=msgbox&message=12345678-1234-1234-1234-123456789abc')
+ assert.equal(helpers.safeWorkspaceNext('/portal?section=msgbox&message=bad&next=https://evil.invalid'),'/portal?section=msgbox')
+ assert.equal(helpers.safeWorkspaceNext('/portal?section=leave'),null)
  for(const value of ['https://evil.invalid','//evil.invalid','/workspace-evil','/workspace/../employees','/employees','/workspace\\evil','/workspace\nfoo',null])assert.equal(helpers.safeWorkspaceNext(value),null)
 })

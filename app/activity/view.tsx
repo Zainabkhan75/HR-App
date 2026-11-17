@@ -29,7 +29,7 @@ export default function Activity({rows, unavailable}: {rows: ActivityRow[]; unav
  return <main className="shell">
   <header>
    <div><div className="eyebrow">SEIDOHR / BANDANA · HR ADMINISTRATION</div><h1>Activity</h1><p>Latest sign-in per employee · Karachi time (PKT)</p></div>
-   <nav className="head-actions" aria-label="Admin Navigation"><a href="/employees">Employee Directory</a><a href="/emails">Email Employees</a><a href="/activity">Refresh Activity</a></nav>
+   <nav className="head-actions" aria-label="Admin Navigation"><a href="/employees">Employee Directory</a><a href="/emails">Message Employees</a><a href="/activity">Refresh Activity</a></nav>
   </header>
   <section className="panel">
    {unavailable ? <p role="alert" className="error">Could not load sign-in activity. Please refresh.</p> : <>

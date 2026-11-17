@@ -26,5 +26,5 @@ export default async function EmailPage({searchParams}:{searchParams:Promise<{in
   const invitation=recipient&&account ? {id:recipient.id,employeeNo:recipient.employee_no,loginEmail:account.login_email} : undefined
   return <Emails key={invite??""} recipients={invitation&&recipient?[recipient]:recipients} counts={counts} adminEmail={ctx.user.email??''} configured={!!process.env.RESEND_API_KEY?.trim()} history={history??[]} invitation={invitation} invitationUnavailable={!!invite&&!invitation}/>
  }
- catch{return <main className="shell"><h1>Email employees</h1><p>Could not load employee emails. Please refresh.</p><a href="/employees">Employee directory</a></main>}
+ catch{return <main className="shell"><h1>Message Employees</h1><p>Could not load employee messaging. Please refresh.</p><a href="/employees">Employee directory</a></main>}
 }
