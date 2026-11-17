@@ -53,7 +53,16 @@ select,textarea{font:inherit;border:1px solid #cfd8e1;border-radius:7px;padding:
 .directory-nav{justify-content:flex-start}
 .directory-nav>a{max-width:100%;white-space:normal;text-align:center}
 .directory-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
-@media(max-width:700px){.directory-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.directory-metrics .metric-button{display:flex;flex-direction:column;gap:8px;background:#fff;color:inherit;border:1px solid #e5eaf0;border-radius:12px;padding:20px;font-weight:400;text-align:left}
+.directory-metrics .metric-button:hover:not(:disabled){background:#f0f6fb;border-color:#15568e}
+.directory-metrics .metric-button:focus-visible{outline:2px solid #15568e;outline-offset:2px}
+.directory-metrics .metric-button span{line-height:normal}
+.directory-metrics .metric-button strong{line-height:normal}
+.directory-metric-dialog{width:min(520px,calc(100% - 24px));max-height:calc(100% - 24px);border:1px solid #dce4ec;border-radius:12px;padding:20px;color:inherit;background:#fff}
+.directory-metric-dialog::backdrop{background:#1326378c}
+.directory-metric-dialog h2{margin:0}
+.directory-metric-dialog table{min-width:0;user-select:text;margin-top:12px}
+@media(max-width:700px){.directory-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.directory-metrics .metric-button{padding:12px}}
 button:not(.link,.sort-heading),.head-actions>a,.recovery-action{box-sizing:border-box;min-height:44px;line-height:20px}
 .actions button{min-height:0}
 .head-actions>a,.recovery-action{display:inline-flex;align-items:center;justify-content:center;padding:11px 17px}

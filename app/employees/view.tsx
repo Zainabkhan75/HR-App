@@ -7,7 +7,7 @@ import type {ProfileOptions} from '../../lib/profile-inputs'
 import {employmentFields} from '../../lib/ess-profile'
 import {displayShortDate,isIsoDate,isProfileDateField} from '../../lib/date-input'
 import {useTableSort} from '../sortable-table'
-import {useEffect,useMemo,useState} from 'react'
+import {useEffect,useMemo,useRef,useState} from 'react'
 import {browserDb} from '../../lib/supabase'
 import MoneyInput from '../money-input'
 import {formatMoneyField,isMoneyField} from '../../lib/money'
@@ -18,6 +18,8 @@ type Detail={payroll_sep_2026:Record<string,string>;profile:Record<string,string
 const baseFields:[Exclude<keyof Employee,'employee_details'>,string][]=[['full_name','Full name'],['department','Department'],['designation','Designation'],['reports_to_text','Reports To'],['location','Location'],['source_note','Source / verification note']]
 type Credentials={employee_no:string;full_name:string;username:string;initial_password:string}
 export default function Directory({email}:{email:string}) {
+ const metricDialog=useRef<HTMLDialogElement>(null)
+ const [metricIndex,setMetricIndex]=useState(0)
  const [credentials,setCredentials]=useState<Credentials|null>(null),[accounts,setAccounts]=useState<Record<string,string>>({})
  const [rows,setRows]=useState<Employee[]>([]),[q,setQ]=useState(''),[filter,setFilter]=useState('all'),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[check,setCheck]=useState('')
  const [selected,setSelected]=useState<Employee|null>(null),[adding,setAdding]=useState(false),[tab,setTab]=useState('core'),[values,setValues]=useState<Record<string,string>>({}),[detail,setDetail]=useState<Detail>({profile:{},payroll_sep_2026:{}}),[busy,setBusy]=useState(false)
@@ -63,8 +65,14 @@ export default function Directory({email}:{email:string}) {
  const directorySort=useTableSort('employee_no')
  const matches=useMemo(()=>rows.filter(x=>(filter==='all'||x.employment_state===filter)&&[x.employee_no,x.full_name,x.designation,x.department,x.location].some(v=>(v??'').toLowerCase().includes(q.toLowerCase()))),[rows,q,filter])
  const activeRows=rows.filter(row=>row.employment_state==='active')
- const noEmailCount=useMemo(()=>emailRecipients(rows,rows.map(row=>({employee_id:row.id,profile:row.employee_details??null})))
-  .filter(recipient=>!recipient.email&&recipient.reason!=='Inactive employee').length,[rows])
+ const noEmailIds=useMemo(()=>new Set(emailRecipients(rows,rows.map(row=>({employee_id:row.id,profile:row.employee_details??null})))
+  .filter(recipient=>!recipient.email).map(recipient=>recipient.id)),[rows])
+ const exceptionMetrics=[
+  {title:'Missing department (active)',rows:activeRows.filter(row=>!row.department?.trim())},
+  {title:'Missing reporting line (active)',rows:activeRows.filter(row=>!reportingDesignation(row))},
+  {title:'No email available',rows:activeRows.filter(row=>noEmailIds.has(row.id))},
+ ]
+ const selectedMetric=exceptionMetrics[metricIndex]
  async function loadDesignations(){
   const {data,error}=await browserDb().rpc('my_profile_options')
   if(error||!data){setError('Could not load the profile dropdown lists.');return}
@@ -127,7 +135,24 @@ export default function Directory({email}:{email:string}) {
    <a href="/organisation">Departments &amp; Designations</a>
   </nav>
  </header>
- <section className="metrics directory-metrics" aria-label="Active employee counters"><article><span>Active employees</span><strong>{activeRows.length}</strong></article><article><span>Missing department (active)</span><strong>{activeRows.filter(x=>!x.department).length}</strong></article><article><span>Missing reporting line (active)</span><strong>{activeRows.filter(x=>!reportingDesignation(x)).length}</strong></article><article><span>No email available</span><strong>{loading?'—':noEmailCount}</strong></article></section>
+ <section className="metrics directory-metrics" aria-label="Active employee counters">
+  <article><span>Active employees</span><strong>{activeRows.length}</strong></article>
+  {exceptionMetrics.map(({title,rows:employees},index)=>
+   <button key={title} type="button" className="metric-button" aria-haspopup="dialog" onClick={()=>{setMetricIndex(index);metricDialog.current?.showModal()}} disabled={loading}>
+    <span>{title}</span><strong>{loading?'—':employees.length}</strong>
+   </button>
+  )}
+ </section>
+ <dialog ref={metricDialog} className="directory-metric-dialog" aria-labelledby="directory-metric-title">
+  <div className="ess-section-heading">
+   <h2 id="directory-metric-title">{selectedMetric.title}</h2>
+   <button type="button" className="secondary" onClick={()=>metricDialog.current?.close()}>Close</button>
+  </div>
+  {selectedMetric.rows.length===0?<p>No active employees in this group.</p>:
+   <table><thead><tr><th scope="col">Employee name</th><th scope="col">Employee ID</th></tr></thead>
+    <tbody>{selectedMetric.rows.map(row=><tr key={row.id}><td>{row.full_name}</td><td className="mono">{row.employee_no}</td></tr>)}</tbody>
+   </table>}
+ </dialog>
  <section className="panel"><div className="bar"><input aria-label="Search employees" placeholder="Search by name, ID, designation, department…" value={q} onChange={e=>setQ(e.target.value)}/><select aria-label="Employment status" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select><button onClick={()=>void edit(null)}>+ Add employee</button></div>{error&&<p className="error" role="alert">{error}</p>}{notice&&<p role="status" className="notice">{notice}</p>}{check&&<p className="error" role="alert">{check}</p>}{loading?<p>Loading employees…</p>:<><p className="muted">Showing {matches.length} of {rows.length} records</p><div className="tablewrap"><table><thead><tr>{directorySort.heading('employee_no', 'Employee ID')}{directorySort.heading('full_name', 'Name')}{directorySort.heading('designation', 'Designation')}{directorySort.heading('department', 'Department')}{directorySort.heading('reports_to_designation', 'Reports To (Designation)')}{directorySort.heading('employment_state', 'Status')}{directorySort.heading('leaving_date', 'Leaving date')}<th>Actions</th></tr></thead><tbody>{directorySort.sortRows(matches,(row,column)=>column==='reports_to_designation'?reportingDesignation(row):row[column as Exclude<keyof Employee,'employee_details'>]).map(x=><tr key={x.id}><td className="mono">{x.employee_no}</td><td><strong>{x.full_name}</strong></td><td>{x.designation||'—'}</td><td>{x.department||'—'}</td><td>{reportingDesignation(x)||'—'}</td><td><span className={'status '+x.employment_state}>{x.employment_state}</span></td><td>{displayShortDate(x.leaving_date)||"—"}</td><td className="actions"><button className="link inactive-disabled" disabled={x.employment_state==='inactive'} title={x.employment_state==='inactive'?'Reactivate employee before editing':undefined} onClick={()=>void edit(x)}>Edit</button>{accounts[x.id]?<span className="muted">Login ready</span>:<button className="link inactive-disabled" disabled={busy||x.employment_state==='inactive'} title={x.employment_state==='inactive'?'Reactivate employee before creating a login':undefined} onClick={()=>void createLogin(x.id)}>Create login</button>}<button className="link" onClick={()=>{setAction({type:x.employment_state==='inactive'?'reactivate':'deactivate',row:x});setReason('');setConfirm('');setLeavingDate('')}}>{x.employment_state==='inactive'?'Reactivate':'Deactivate'}</button><button className="link danger" onClick={()=>{setAction({type:'delete',row:x});setReason('');setConfirm('');setLeavingDate('')}}>Delete</button></td></tr>)}</tbody></table></div></>}</section>
  {(selected||adding)&&<div className="overlay"><div className="dialog wide" role="dialog" aria-modal="true" aria-label={selected?'Edit employee':'Add employee'}><div className="bar"><h2>{selected?'Employee Profile':'New employee'}</h2><button className="secondary" type="button" onClick={close}>Close</button></div>{selected?<p className="mono">{selected.employee_no} · {selected.employment_state}</p>:<p className="muted">A new employee number is assigned on save.</p>}
  {profileEmailDiffers&&<p className="error" role="alert">The sign-in email on file is <strong>{signInEmail}</strong>. It differs from the work and personal emails shown in this profile. Review the account in <a href="/credentials">Credentials</a>.</p>}
