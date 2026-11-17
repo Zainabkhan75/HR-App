@@ -2,6 +2,7 @@ import {redirect} from 'next/navigation'
 import {serverSupabase} from '../../lib/server'
 import Portal from './view'
 import AccountStatus from './account-status'
+import {employeeLeaveData} from '../../lib/leave'
 import type {EmployeeProfile} from '../../lib/ess-profile'
 
 export default async function PortalPage({searchParams}:{searchParams:Promise<{section?:string;message?:string}>}){
@@ -33,6 +34,10 @@ export default async function PortalPage({searchParams}:{searchParams:Promise<{s
  const year=Number(date.find(part=>part.type==='year')?.value)
  const month=Number(date.find(part=>part.type==='month')?.value)
  const fiscalYear=month<7?year-1:year
- const {data:msgbox}=await db.rpc('msgbox_workspace',{p_year:fiscalYear})
- return <Portal msgboxData={msgbox??undefined} showMsgBox={showMsgBox} focusedMessage={message} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
+ const [{data:msgbox},{data:workspace}]=await Promise.all([
+  db.rpc('msgbox_workspace',{p_year:fiscalYear}),
+  db.rpc('leave_workspace',{p_year:fiscalYear}),
+ ])
+ const leaveData=workspace?.employee_id&&workspace.pilot_applicant===true?employeeLeaveData(workspace):undefined
+ return <Portal leaveData={leaveData} msgboxData={msgbox??undefined} showMsgBox={showMsgBox} focusedMessage={message} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
 }

@@ -13,14 +13,14 @@ import {formatMoneyField} from '../../lib/money'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
 const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','My Payslip']] as const
-type Tab=typeof tabs[number][0]|'msgbox'
+type Tab=typeof tabs[number][0]|'leave'|'msgbox'
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
 function FieldList({fields,values}:{fields:readonly (readonly [string,string])[];values:Values}){
  return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(formatMoneyField(key,values[key]))}</dd></div>)}</dl>
 }
 
-export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,msgboxData,showMsgBox,focusedMessage}:{msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
+export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,leaveData,msgboxData,showMsgBox,focusedMessage}:{leaveData?:WorkspaceData;msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
  const [profile,setProfile]=useState(initialProfile)
  const [tab,setTab]=useState<Tab>(showMsgBox?'msgbox':'profile')
  const [unread,setUnread]=useState(()=>msgboxData?.unread_count??msgboxData?.inbox.filter(message=>!message.read_at).length??0)
@@ -88,10 +88,14 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
   <nav className="ess-nav" aria-label="Self-service sections">
    {tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}
+   {leaveData&&<button type="button" aria-pressed={tab==='leave'} className={tab==='leave'?'ess-nav-active':''} onClick={()=>setTab('leave')}>Leave</button>}
    <button type="button" aria-pressed={tab==='msgbox'} aria-label={unread>0?'My Msgs, '+unread+' unread '+(unread===1?'message':'messages'):'My Msgs'} className={'msgbox-tab'+(tab==='msgbox'?' ess-nav-active':'')} onClick={()=>setTab('msgbox')}>
     My Msgs{unread>0&&<span className="msgbox-unread-badge" aria-hidden="true">{unread}</span>}
    </button>
   </nav>
+  {leaveData&&<div hidden={tab!=='leave'}>
+   <Workspace initialData={leaveData} initialSection="leave" employee={employee} embedded/>
+  </div>}
   <div hidden={tab!=='msgbox'}>
    {msgboxData
     ?<Workspace initialData={msgboxData} initialSection="inbox" focusedMessage={focusedMessage} onUnreadChange={setUnread} embedded/>
