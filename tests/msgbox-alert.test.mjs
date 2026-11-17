@@ -17,7 +17,7 @@ const item={
  title:'Leave approved',body:'Your leave has been approved.',
 }
 
-test('sends the message text and exact MsgBox link to the selected employee address',async()=>{
+test('sends the message text and exact My Msgs link to the selected employee address',async()=>{
  const keys=[]
  const fetcher=async(url,options)=>{
   assert.equal(url,'https://api.resend.com/emails')
@@ -25,7 +25,7 @@ test('sends the message text and exact MsgBox link to the selected employee addr
   const payload=JSON.parse(options.body)
   assert.deepEqual(payload.to,[item.recipient_email])
   assert.equal(payload.subject,'You have a new message')
-  assert.equal(payload.text,item.title+'\n\n'+item.body+'\n\nOpen this message in Bandana HR MsgBox:\nhttps://app.example.invalid'+item.link_path)
+  assert.equal(payload.text,item.title+'\n\n'+item.body+'\n\nOpen this message in Bandana HR My Msgs:\nhttps://app.example.invalid'+item.link_path)
   return Response.json({id:'accepted-id'})
  }
  assert.equal(await sendMsgBoxAlert(item,'key',fetcher),'accepted-id')
@@ -33,10 +33,21 @@ test('sends the message text and exact MsgBox link to the selected employee addr
  assert.deepEqual(keys,['bandana-msgbox/queue-id','bandana-msgbox/queue-id'])
 })
 
-test('uses a safe MsgBox link and requires confirmed provider acceptance',async()=>{
+test('uses a safe My Msgs link and requires confirmed provider acceptance',async()=>{
  await assert.rejects(sendMsgBoxAlert({...item,link_path:'https://elsewhere.invalid'},'key',async(_url,options)=>{
   assert.match(JSON.parse(options.body).text,/https:\/\/app\.example\.invalid\/portal\?section=msgbox$/)
   return Response.json({})
  }),/could not be confirmed/)
  await assert.rejects(sendMsgBoxAlert(item,'key',async()=>new Response(null,{status:429})),/HTTP 429/)
+})
+
+test('leave decision alerts state the result and retain the exact message link',async()=>{
+ for(const title of ['Leave request approved','Leave request rejected','Approved leave cancelled']){
+  await sendMsgBoxAlert({...item,title},'key',async(_url,options)=>{
+   const payload=JSON.parse(options.body)
+   assert.equal(payload.subject,title)
+   assert.ok(payload.text.includes(item.link_path))
+   return Response.json({id:'accepted-id'})
+  })
+ }
 })

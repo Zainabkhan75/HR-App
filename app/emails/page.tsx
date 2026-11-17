@@ -13,7 +13,7 @@ export default async function EmailPage({searchParams}:{searchParams:Promise<{in
    admin.from('employee_accounts').select('employee_id,login_email,is_active').limit(2000),
   ])
   if(accounts.error)throw accounts.error
-  const linked=new Set(accounts.data.map(account=>account.employee_id))
+  const linked=new Set(accounts.data.filter(account=>account.is_active).map(account=>account.employee_id))
   const active=recipients.filter(recipient=>recipient.reason!=='Inactive employee')
   const counts={
    active:active.length,
@@ -24,7 +24,8 @@ export default async function EmailPage({searchParams}:{searchParams:Promise<{in
   const recipient=invite ? active.find(row=>row.employee_no===invite&&row.email) : undefined
   const account=recipient && accounts.data.find(row=>row.employee_id===recipient.id&&row.is_active)
   const invitation=recipient&&account ? {id:recipient.id,employeeNo:recipient.employee_no,loginEmail:account.login_email} : undefined
-  return <Emails key={invite??""} recipients={invitation&&recipient?[recipient]:recipients} counts={counts} adminEmail={ctx.user.email??''} configured={!!process.env.RESEND_API_KEY?.trim()} history={history??[]} invitation={invitation} invitationUnavailable={!!invite&&!invitation}/>
+  const choices=recipients.map(r=>r.email&&!linked.has(r.id)?{...r,email:null,source:'',reason:'No active portal account'}:r)
+  return <Emails key={invite??""} recipients={invitation&&recipient?[recipient]:choices} counts={counts} adminEmail={ctx.user.email??''} configured={!!process.env.RESEND_API_KEY?.trim()} history={history??[]} invitation={invitation} invitationUnavailable={!!invite&&!invitation}/>
  }
- catch{return <main className="shell"><h1>Message Employees</h1><p>Could not load employee messaging. Please refresh.</p><a href="/employees">Employee directory</a></main>}
+ catch{return <main className="shell"><h1>Send Msg</h1><p>Could not load employee messaging. Please refresh.</p><a href="/employees">Employee directory</a></main>}
 }

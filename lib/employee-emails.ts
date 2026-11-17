@@ -4,7 +4,7 @@ export type EmailEmployee={id:string;employee_no:string;full_name:string;departm
 export type EmailDetail={employee_id:string;profile:Record<string,unknown>|null}
 export const MAX_ATTACHMENT_BYTES=2*1024*1024
 export type Attachment={filename:string;content:string}
-export type Recipient={id:string;employee_no:string;name:string;department:string;email:string|null;source:string;reason:string;test?:boolean;attachment?:Attachment;attachmentName?:string}
+export type Recipient={id:string;employee_no:string;name:string;department:string;email:string|null;source:string;reason:string;test?:boolean;attachment?:Attachment;attachmentName?:string;msgbox_user_id?:string;msgbox_message_id?:string}
 const clean=(v:unknown)=>typeof v==='string'?v.trim().toLowerCase():''
 const valid=(v:string)=>v.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
 export function emailRecipients(employees:EmailEmployee[],details:EmailDetail[]):Recipient[]{
@@ -22,9 +22,13 @@ export function validateMessage(subject:unknown,body:unknown):{subject:string;bo
  if(unknown?.length)throw Error('Supported placeholders: {{name}}, {{employee_id}}, {{login_url}}')
  return{subject:subject.trim(),body:body.trim()}
 }
+export function employeeMessageText(body:string,r:Recipient){
+ return body.replace(/{{name}}/g,()=>r.name).replace(/{{employee_id}}/g,()=>r.employee_no).replace(/{{login_url}}/g,()=>LOGIN_URL)
+}
 export function emailPayload(c:{subject:string;body:string;reply_to:string;recipients:Recipient[]}){
  return c.recipients.map(r=>({from:EMAIL_FROM,to:[r.email!],reply_to:c.reply_to,subject:c.subject,
- text:c.body.replace(/{{name}}/g,()=>r.name).replace(/{{employee_id}}/g,()=>r.employee_no).replace(/{{login_url}}/g,()=>LOGIN_URL),...(r.attachment?{attachments:[r.attachment]}:{})}))
+ text:employeeMessageText(c.body,r)+(r.msgbox_message_id?'\n\nOpen in My Msgs: '+new URL('/portal?section=msgbox&message='+r.msgbox_message_id,LOGIN_URL).href:''),
+ ...(r.attachment?{attachments:[r.attachment]}:{})}))
 }
 export async function sendEmailBatch(c:{id:string;subject:string;body:string;reply_to:string;recipients:Recipient[]},key:string,fetcher:typeof fetch=fetch){
  if(!key.trim())throw Error('Add RESEND_API_KEY in Vercel before sending')

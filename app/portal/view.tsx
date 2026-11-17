@@ -88,14 +88,14 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
   <nav className="ess-nav" aria-label="Self-service sections">
    {tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}
-   <button type="button" aria-pressed={tab==='msgbox'} aria-label={unread>0?'MsgBox, '+unread+' unread '+(unread===1?'message':'messages'):'MsgBox'} className={'msgbox-tab'+(tab==='msgbox'?' ess-nav-active':'')} onClick={()=>setTab('msgbox')}>
-    MsgBox{unread>0&&<span className="msgbox-unread-badge" aria-hidden="true">{unread}</span>}
+   <button type="button" aria-pressed={tab==='msgbox'} aria-label={unread>0?'My Msgs, '+unread+' unread '+(unread===1?'message':'messages'):'My Msgs'} className={'msgbox-tab'+(tab==='msgbox'?' ess-nav-active':'')} onClick={()=>setTab('msgbox')}>
+    My Msgs{unread>0&&<span className="msgbox-unread-badge" aria-hidden="true">{unread}</span>}
    </button>
   </nav>
   <div hidden={tab!=='msgbox'}>
    {msgboxData
     ?<Workspace initialData={msgboxData} initialSection="inbox" focusedMessage={focusedMessage} onUnreadChange={setUnread} embedded/>
-    :<section className="panel"><h2>MsgBox</h2><p>Could not load your messages. Please refresh the dashboard.</p></section>}
+    :<section className="panel"><h2>My Msgs</h2><p>Could not load your messages. Please refresh the dashboard.</p></section>}
   </div>
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}

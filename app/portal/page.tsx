@@ -8,9 +8,10 @@ export default async function PortalPage({searchParams}:{searchParams:Promise<{s
  const params=await searchParams
  const showMsgBox=params.section==='msgbox'
  const message=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(params.message??'')?params.message:undefined
+ const msgboxPath='/portal?section=msgbox'+(message?'&message='+message:'')
  const db=await serverSupabase()
  const {data:{user}}=await db.auth.getUser()
- if(!user)redirect(showMsgBox?'/login?next='+encodeURIComponent('/portal?section=msgbox'+(message?'&message='+message:'')):'/login')
+ if(!user)redirect(showMsgBox?'/login?next='+encodeURIComponent(msgboxPath):'/login')
 
  const {data:roles,error:roleError}=await db.from('user_roles').select('role').eq('user_id',user.id)
  if(roleError)return <AccountStatus email={user.email} title="Portal unavailable" message="We could not check your account permissions. Please try again or contact HR."/>
@@ -21,7 +22,7 @@ export default async function PortalPage({searchParams}:{searchParams:Promise<{s
  const summary=Array.isArray(data)?data[0]:undefined
  if(!summary&&isAdmin)redirect(showMsgBox?'/workspace?section=inbox'+(message?'&message='+message:''):'/employees')
  if(!summary)return <AccountStatus email={user.email} title="Employee account unavailable" message="The account shown below has no active employee profile linked to it. If you intended to use a different account, sign out and sign in with your HR-approved username or email. Otherwise, contact HR."/>
- if(summary.must_change_password)redirect('/change-password')
+ if(summary.must_change_password)redirect(showMsgBox?'/change-password?next='+encodeURIComponent(msgboxPath):'/change-password')
 
  const {data:profile,error:profileError}=await db.rpc('my_employee_profile')
  if(profileError||!profile)return <AccountStatus email={user.email} title="Profile unavailable" message="We could not load your self-service profile. Please try again or contact HR."/>

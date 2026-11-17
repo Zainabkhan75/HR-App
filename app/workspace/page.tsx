@@ -23,7 +23,7 @@ export default async function WorkspacePage({searchParams}:{searchParams:Promise
   redirect('/portal?section=msgbox'+(message?'&message='+message:''))
  const {data,error}=workspace
  if(section==='leave-preview'&&data?.is_hr)return <main className="mobile-shell"><LeavePreview/><a href="/workspace?section=settings">Back to leave settings</a></main>
- if(error||!data)return <main className="mobile-shell"><h1>Leave & MsgBox unavailable</h1><p>{error?.code==='42501'?'An active employee account with password setup complete, or HR administrator access, is required.':'We could not load leave details. Please try again.'}</p><a href="/portal">Back to employee portal</a></main>
+ if(error||!data)return <main className="mobile-shell"><h1>Leave & My Msgs unavailable</h1><p>{error?.code==='42501'?'An active employee account with password setup complete, or HR administrator access, is required.':'We could not load leave details. Please try again.'}</p><a href="/portal">Back to employee portal</a></main>
  return <>
   {section==='settings' && data.is_hr && <div className="mobile-shell"><a href="/workspace?section=leave-preview">Preview the Head Office leave form</a></div>}
   <Workspace initialData={data as WorkspaceData} initialSection={section==='leave-preview'?'leave':section} focusedRequest={request} focusedMessage={message}/>

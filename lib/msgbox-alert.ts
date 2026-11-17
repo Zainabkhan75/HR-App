@@ -3,6 +3,7 @@ import {EMAIL_FROM,LOGIN_URL} from './employee-emails'
 export type MsgBoxAlert={id:string;recipient_email:string;link_path:string;attempts:number;title:string;body:string}
 
 const messageLink=/^\/portal\?section=msgbox&message=[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/
+const leaveDecisions=new Set(['Leave request approved','Leave request rejected','Leave request cancelled','Approved leave cancelled'])
 
 export async function sendMsgBoxAlert(item:MsgBoxAlert,key:string,fetcher:typeof fetch=fetch){
  const target=messageLink.test(item.link_path)?item.link_path:'/portal?section=msgbox'
@@ -13,8 +14,8 @@ export async function sendMsgBoxAlert(item:MsgBoxAlert,key:string,fetcher:typeof
   body:JSON.stringify({
    from:EMAIL_FROM,
    to:[item.recipient_email],
-   subject:'You have a new message',
-   text:[item.title,item.body,'Open this message in Bandana HR MsgBox:\n'+link.href].filter(Boolean).join('\n\n'),
+   subject:leaveDecisions.has(item.title)?item.title:'You have a new message',
+   text:[item.title,item.body,'Open this message in Bandana HR My Msgs:\n'+link.href].filter(Boolean).join('\n\n'),
   }),
   signal:AbortSignal.timeout(15000),
  })
