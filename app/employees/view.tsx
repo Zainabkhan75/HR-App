@@ -113,19 +113,15 @@ export default function Directory({email}:{email:string}) {
     <button className="secondary" onClick={logout}>Sign out</button>
    </div>
   </div>
-  <nav className="directory-nav" aria-label="Admin navigation">
-   <section aria-labelledby="directory-leave-nav">
-    <h2 id="directory-leave-nav">Leave &amp; messaging</h2>
-    <div className="head-actions"><a href="/workspace?section=settings">Leave</a><a href="/emails">Send Msg</a><a href="/workspace?section=inbox">My Msgs</a></div>
-   </section>
-   <section aria-labelledby="directory-admin-nav">
-    <h2 id="directory-admin-nav">Employee administration</h2>
-    <div className="head-actions"><a href="/credentials">Credentials</a><a href="/organisation">Departments &amp; Designations</a><a href="/bulk-upload">Bulk Upload</a></div>
-   </section>
-   <section aria-labelledby="directory-reporting-nav">
-    <h2 id="directory-reporting-nav">Reporting</h2>
-    <div className="head-actions"><a href="/reports">Reports</a><a href="/activity">Activity</a></div>
-   </section>
+  <nav className="head-actions directory-nav" aria-label="Admin navigation">
+   <a href="/workspace?section=settings">Leave</a>
+   <a href="/emails">Send Msg</a>
+   <a href="/workspace?section=inbox">My Msgs</a>
+   <a href="/reports">Reports</a>
+   <a href="/activity">Activity</a>
+   <a href="/credentials">Credentials</a>
+   <a href="/bulk-upload">Bulk Upload</a>
+   <a href="/organisation">Departments &amp; Designations</a>
   </nav>
  </header>
  <section className="metrics" aria-label="Active employee counters"><article><span>Active employees</span><strong>{activeRows.length}</strong></article><article><span>Missing department (active)</span><strong>{activeRows.filter(x=>!x.department).length}</strong></article><article><span>Missing reporting line (active)</span><strong>{activeRows.filter(x=>!reportingDesignation(x)).length}</strong></article></section>
