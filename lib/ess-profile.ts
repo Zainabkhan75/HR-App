@@ -32,7 +32,7 @@ export const contactPatch=(values:Values,draft:Record<string,string>):Record<str
 
 export const editableProfileSections=[
  {title:'Core Information',fields:[['full_name','Full Name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports To (Designation)'],['line_manager_employee_no','Line Manager Name']]},
- {title:'Personal Information',fields:[['cnic_passport','CNIC / Passport'],['email','Work Email'],...backgroundSections[0].fields]},
+ {title:'Personal Information',fields:[['gender','Gender'],['cnic_passport','CNIC / Passport'],['email','Work Email'],...backgroundSections[0].fields]},
  ...backgroundSections.slice(1),
  {title:'Employment Information',fields:[...employmentFields.slice(0,-2),employmentFields[4],employmentFields[3]]},
  {title:'Salary & Benefits (where applicable)',fields:rewardFields.filter(([key])=>key!=='medical_hospitalisation_limit_person_year_pkr'),readOnly:true},

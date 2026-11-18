@@ -5,7 +5,13 @@ import ts from 'typescript'
 const source=readFileSync(new URL('../lib/profile-inputs.ts',import.meta.url),'utf8')
 const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
 const exported={}
-new Function('exports',compiled)(exported)
+const dates={}
+const dateSource=readFileSync(new URL('../lib/date-input.ts',import.meta.url),'utf8')
+new Function('exports',ts.transpileModule(dateSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(dates)
+new Function('exports','require',compiled)(exported,name=>{
+ if(name==='./date-input')return dates
+ throw Error('Unexpected profile dependency: '+name)
+})
 const {employmentChoice,validJoiningDate,validProbation,selectChoices}=exported
 
 test('designation choices belong to the selected department',()=>{

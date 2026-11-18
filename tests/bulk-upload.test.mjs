@@ -7,8 +7,8 @@ import ts from 'typescript'
 const nodeRequire=createRequire(import.meta.url)
 function load(path,overrides={}){const source=readFileSync(new URL(path,import.meta.url),'utf8'),compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,module={exports:{}};new Function('require','module','exports',compiled)((name)=>overrides[name]??nodeRequire(name),module,module.exports);return module.exports}
 const config=load('../app/employees/field-config.ts')
-const bulk=load('../lib/bulk-upload.ts',{'../app/employees/field-config':config})
 const monthly=load('../lib/monthly-payroll.ts',{'../app/employees/field-config':config})
+const bulk=load('../lib/bulk-upload.ts',{'../app/employees/field-config':config,'./monthly-payroll':monthly})
 
 test('monthly payroll binds every row to one month and retains explicit zero allowances',async()=>{
  const ExcelJS=nodeRequire('exceljs'),book=new ExcelJS.Workbook()
@@ -103,4 +103,20 @@ test('NEW rows reject supplied IDs and UPDATE keeps mandatory YES/NO',async()=>{
  await assert.rejects(async()=>bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot)),/leave Employee ID blank/)
  sheet.getCell('C3').value='UPDATE';sheet.getCell('B3').value=''
  await assert.rejects(async()=>bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot)),/choose YES or NO/)
+})
+
+test('status and credential settings require explicit reviewed values',()=>{
+ const current={...snapshot,employees:[{...snapshot.employees[0],employment_state:'active'}],accounts:[{employee_id:'e1',user_id:'u1',username:'old@example.com',login_email:'old@example.com',is_active:true,must_change_password:false}]}
+ const base={employeeNo:'100001',name:'Existing Person',replace:true,core:{},profile:{},payroll:{},family:[]}
+ const plan=control=>bulk.planUpload([{...base,control}],current,bulk.fieldsFor(current))[0]
+ assert.throws(()=>plan({employment_state:'inactive'}),/Deactivation requires/)
+ const inactive=plan({employment_state:'inactive',leaving_date:'2026-11-17',status_reason:'Employee left'})
+ assert.equal(inactive.control.employment_state,'inactive')
+ assert.throws(()=>plan({login_email:'new@example.com'}),/Confirm ownership/)
+ assert.equal(plan({login_email:'new@example.com',email_verified:'YES'}).control.login_email,'new@example.com')
+ assert.throws(()=>plan({account_active:'maybe'}),/YES or NO/)
+ assert.throws(()=>plan({marital_status:'Other'}),/Single or Married/)
+ assert.equal(plan({credential_action:'RESET'}).control.credential_action,'RESET')
+ const unchanged=plan({employment_state:'active',login_email:'old@example.com',account_active:'YES',must_change_password:'NO'})
+ assert.equal(unchanged.fill+unchanged.overwrite,0)
 })

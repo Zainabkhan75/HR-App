@@ -1,17 +1,19 @@
 import ExcelJS from 'exceljs'
 import {createHash} from 'node:crypto'
 import {fieldKey,sections,payrollFields,retiredSalaryKeys,payrollProfileFields} from '../app/employees/field-config'
+import {normalizeSpreadsheetXml} from './monthly-payroll'
 
-export type Bucket='core'|'profile'|'payroll'
+export type Bucket='core'|'profile'|'payroll'|'control'
 export type Field={header:string;bucket:Bucket;key:string}
-export type EmployeeRow={id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;updated_at:string}
+export type EmployeeRow={id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;employment_state?:string;leaving_date?:string|null;updated_at:string}
 export type DetailRow={employee_id:string;profile:Record<string,unknown>|null;payroll_sep_2026:Record<string,unknown>|null;updated_at:string}
 export type FamilyMember={full_name:string;age:number;date_of_birth?:string;pre_existing_conditions:string;cnic:string}
-export type FamilyRecord={employee_id:string;spouse:FamilyMember|null;children:FamilyMember[]|null;updated_at:string}
-export type Snapshot={employees:EmployeeRow[];details:DetailRow[];families?:FamilyRecord[]}
+export type FamilyRecord={employee_id:string;spouse:FamilyMember|null;children:FamilyMember[]|null;marital_status?:string|null;updated_at:string}
+export type AccountRecord={employee_id:string;user_id:string;username:string;login_email:string;is_active:boolean;must_change_password:boolean}
+export type Snapshot={employees:EmployeeRow[];details:DetailRow[];families?:FamilyRecord[];accounts?:AccountRecord[]}
 export type FamilyInput={type:'Spouse'|'Child';childNumber:number;replace:boolean;values:Record<string,string>}
-export type UploadRow={action?:'NEW'|'UPDATE';reference?:string;employeeNo:string;name:string;replace:boolean;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;family:FamilyInput[]}
-export type PlannedRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string;name:string;replace:boolean;expectedCoreUpdatedAt:string;expectedDetailsUpdatedAt:string;expectedFamilyUpdatedAt:string|null;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;family:FamilyInput[];fill:number;overwrite:number;skipped:number;unchanged:number;changes:{field:string;before:string;after:string;action:'fill'|'replace'|'skip'}[]}
+export type UploadRow={action?:'NEW'|'UPDATE';reference?:string;employeeNo:string;name:string;replace:boolean;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;control?:Record<string,string>;family:FamilyInput[]}
+export type PlannedRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string;name:string;replace:boolean;expectedCoreUpdatedAt:string;expectedDetailsUpdatedAt:string;expectedFamilyUpdatedAt:string|null;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;control:Record<string,string>;expectedAccount:string;family:FamilyInput[];fill:number;overwrite:number;skipped:number;unchanged:number;changes:{field:string;before:string;after:string;action:'fill'|'replace'|'skip'}[]}
 
 const coreFields:Field[]=[
  {header:'Employee Name',bucket:'core',key:'full_name'},
@@ -20,6 +22,22 @@ const coreFields:Field[]=[
  {header:'Reports To',bucket:'core',key:'reports_to_text'},
  {header:'Location',bucket:'core',key:'location'},
 ]
+const controlFields:Field[]=[
+ {header:'Employment Status',bucket:'control',key:'employment_state'},
+ {header:'Leaving Date',bucket:'control',key:'leaving_date'},
+ {header:'Status Change Reason',bucket:'control',key:'status_reason'},
+ {header:'Marital Status',bucket:'control',key:'marital_status'},
+ {header:'Credentials | Sign-in Email / Username',bucket:'control',key:'login_email'},
+ {header:'Credentials | Email Ownership Confirmed (YES/NO)',bucket:'control',key:'email_verified'},
+ {header:'Credentials | Account Active (YES/NO)',bucket:'control',key:'account_active'},
+ {header:'Credentials | Require Password Change (YES/NO)',bucket:'control',key:'must_change_password'},
+ {header:'Credentials | Action (CREATE/RESET)',bucket:'control',key:'credential_action'},
+]
+export function controlValues(employee:EmployeeRow,family?:FamilyRecord,account?:AccountRecord):Record<string,string>{
+ return {employment_state:employee.employment_state??'active',leaving_date:employee.leaving_date??'',marital_status:family?.marital_status??'',
+  login_email:account?.login_email??'',account_active:account?(account.is_active?'YES':'NO'):'',
+  must_change_password:account?(account.must_change_password?'YES':'NO'):''}
+}
 export const ID_HEADER='Employee ID'
 export const MODE_HEADER='Replace existing values? (YES/NO)'
 export const ACTION_HEADER='Action (NEW/UPDATE)'
@@ -27,6 +45,8 @@ export const REF_HEADER='Upload reference'
 const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC',REF_HEADER,'Date of Birth']
 const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,'Profile | Reporting to'])
 const legacyProfileHeaders: Record<string,string> = {
+ 'Profile | Offer Date':'Profile | Date of Confirmation',
+ 'Profile | line manager employee no':'Profile | Line Manager Employee ID',
  'Profile | Mobile': 'Profile | Work Mobile Number',
  'Profile | Mobile number': 'Profile | Work Mobile Number',
  'Profile | Personal Mobile': 'Profile | Personal Mobile Number',
@@ -35,9 +55,19 @@ const legacyProfileHeaders: Record<string,string> = {
 }
 export function fieldsFor(snapshot:Snapshot):Field[]{
  const profile=new Map<string,string>()
- for(const section of sections)if(section.key!=='current-payroll')for(const label of section.labels)if(label!=='Reporting to')profile.set(fieldKey(label),label)
+ for(const section of sections)if(section.key!=='current-payroll'){
+  for(const label of section.labels)if(label!=='Reporting to')profile.set(fieldKey(label),label==='Offer Date'?'Date of Confirmation':label)
+  if(section.key==='background')profile.set('highest_qualification_level','Highest Qualification Level')
+ }
  for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!profile.has(key)&&!retiredSalaryKeys.has(key)&&!['reporting_line_basis','reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key))profile.set(key,key.replaceAll('_',' '))}
- return [...coreFields,...[...profile].map(([key,label])=>({header:`Profile | ${label}`,bucket:'profile' as const,key})),...payrollFields.map(label=>({header:`Employees Payroll Details | ${label}`,bucket:'payroll' as const,key:fieldKey(label)}))]
+ profile.set('line_manager_employee_no','Line Manager Employee ID')
+ profile.set('highest_qualification_level','Highest Qualification Level')
+ profile.set('gender','Gender')
+ const managerField={header:'Profile | Line Manager Employee ID',bucket:'profile' as const,key:'line_manager_employee_no'}
+ const fields=[...coreFields,{header:'Record Status',bucket:'core' as const,key:'record_status'},{header:'Source / verification note',bucket:'core' as const,key:'source_note'},
+  ...[...profile].filter(([key])=>key!=='line_manager_employee_no').map(([key,label])=>({header:`Profile | ${label}`,bucket:'profile' as const,key})),
+  ...payrollFields.map(label=>({header:`Employees Payroll Details | ${label}`,bucket:'payroll' as const,key:fieldKey(label)}))]
+ return [...fields.slice(0,4),managerField,fields[4],...controlFields.slice(0,3),...fields.slice(5),controlFields[3],...controlFields.slice(4)]
 }
 export function cellText(value:unknown):string{
  if(value==null)return''
@@ -63,24 +93,28 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
   'Choose UPDATE for an existing employee and enter their six-digit Employee ID. YES/NO keeps its existing replacement behaviour.',
   'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name, department and designation. An Active employee ID is assigned only when you apply.',
   'Give each NEW row a unique Upload reference such as NEW-01 if adding family rows; repeat that reference on the Family sheet with Employee ID blank.',
-  'Potential duplicates by name, CNIC or email must be resolved before applying. Login creation remains a separate step.',
+  'Potential duplicates by name, CNIC or email must be resolved before applying. Credential actions run after the profile is saved.',
   'The Employees sheet starts with saved values. Family details are normally submitted by employees in the portal.',
   'Blank upload cells do not erase stored values. The Current data and Current family sheets preserve a download-time reference.',
   'Set Replace existing values? to YES for an employee only when differing populated values should be overwritten. NO fills empty fields only.',
   'Upload the file in Employee Directory > Bulk upload. Review every proposed change before applying.',
   'For spouse and children, use the Family sheet. Identify children by Child Number; blanks do not erase existing values.',
   'Keep CNIC, account numbers and other identifiers as text. Editing a profile email does not change the linked sign-in email.',
-  'Employee status, account login, passwords, leave settings and audit records use separate workflows.',
+  'Employment Status uses active/inactive. Deactivation requires Leaving Date and Status Change Reason. Set YES to replace existing values.',
+  'Credentials changes require YES. Confirm email ownership with YES when changing a sign-in email. CREATE makes a login and RESET generates the standard temporary password.',
+  'Marital Status uses Single/Married. Enter Married to add family members. Existing family records are retained when changing to Single.',
  ])guide.addRow([line])
  guide.getColumn(1).width=115;guide.getRow(1).font={bold:true,size:16,color:{argb:'FF15568E'}}
  const fields=fieldsFor(snapshot),headers=[ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,...fields.map(f=>f.header)]
  sheet.addRow(['Latest saved values are prefilled. Edit this copy, then upload it. Row 2 contains column headings; data starts on row 3.'])
  sheet.addRow(headers);reference.addRow(['Reference only. Current values at download time; edits on this sheet are not uploaded.']);reference.addRow(headers)
- const details=new Map(snapshot.details.map(d=>[d.employee_id,d]))
+ const details=new Map(snapshot.details.map(d=>[d.employee_id,d])),accounts=new Map((snapshot.accounts??[]).map(a=>[a.employee_id,a])),families=new Map((snapshot.families??[]).map(f=>[f.employee_id,f]))
  for(const employee of snapshot.employees){const detail=details.get(employee.id),profile=detail?.profile??{},payroll=detail?.payroll_sep_2026??{}
+    const controls=controlValues(employee,families.get(employee.id),accounts.get(employee.id))
     const values=fields.map(f=>{
+   if(f.bucket==='control')return controls[f.key]??''
    if(f.bucket==='core')return cellText(employee[f.key as keyof EmployeeRow])
-   if(f.bucket==='profile')return f.key==='notes'?'':cellText(profile[f.key])
+   if(f.bucket==='profile')return f.key==='notes'?'':f.key==='gender'?cellText(profile.gender)||'Male':cellText(profile[f.key])
    if(f.key==='employee_id')return employee.employee_no
    if(f.key==='full_name')return employee.full_name
    if(f.key==='designation')return cellText(employee.designation)
@@ -109,14 +143,38 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  const employeesById=new Map(snapshot.employees.map(e=>[e.id,e]))
  for(const family of snapshot.families??[]){const employee=employeesById.get(family.employee_id);if(!employee)continue
   const members=[...(family.spouse?[{type:'Spouse',number:0,member:family.spouse}]:[]),...(family.children??[]).map((member,index)=>({type:'Child',number:index+1,member}))]
-  for(const {type,number,member} of members){familyReference.addRow([employee.employee_no,employee.full_name,type,number||'','',member.full_name,member.age,member.pre_existing_conditions,member.cnic,'',member.date_of_birth])}
+  for(const {type,number,member} of members){
+   const values=[employee.employee_no,employee.full_name,type,number||'','NO',member.full_name,member.age,member.pre_existing_conditions,member.cnic,'',member.date_of_birth]
+   familySheet.addRow(values);familyReference.addRow(values)
+  }
  }
  for(const tab of [familySheet,familyReference]){tab.views=[{state:'frozen',xSplit:2,ySplit:2}];tab.getRow(2).font={bold:true,color:{argb:'FFFFFFFF'}};tab.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:tab===familySheet?'FF15568E':'FF607488'}};cell.alignment={wrapText:true}});for(let c=1;c<=familyHeaders.length;c++)tab.getColumn(c).width=c===2||c===6?30:22}
  for(let r=3;r<=Math.max(300,familySheet.rowCount);r++)familySheet.getCell(r,5).dataValidation={type:'list',allowBlank:false,formulae:['"NO,YES"']}
+ const monthly=book.addWorksheet('Payroll')
+ monthly.addRow(['Monthly payroll upload'])
+ monthly.addRow(['Enter one payroll month as YYYY-MM. Upload this sheet through Monthly payroll upload.'])
+ monthly.getRow(5).values=['Payroll Month',...payrollFields]
+ monthly.views=[{state:'frozen',xSplit:3,ySplit:5}]
+ monthly.getRow(5).height=60
+ monthly.getRow(5).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF15568E'}};cell.font={bold:true,color:{argb:'FFFFFFFF'}};cell.alignment={wrapText:true,vertical:'middle'}})
+ for(let c=1;c<=payrollFields.length+1;c++){monthly.getColumn(c).width=25;monthly.getColumn(c).numFmt=c<7?'@':'#,##0.00'}
+ const dictionary=book.addWorksheet('Field guide')
+ dictionary.addRow(['Column','App field','Section','How to update'])
+ for(const field of fields)dictionary.addRow([field.header,field.key,field.bucket,field.bucket==='control'?'Reviewed administration change':field.bucket==='payroll'?'September 2026 payroll':'Employee upload'])
+ dictionary.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};dictionary.getRow(1).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF15568E'}}})
+ for(const [column,width] of [[1,64],[2,54],[3,16],[4,40]])dictionary.getColumn(column).width=width
+ dictionary.views=[{state:'frozen',ySplit:1}]
+ for(const [index,field] of fields.entries()){
+  const values=field.key==='gender'?['Male','Female']:field.bucket==='control'?({
+   employment_state:['active','inactive'],marital_status:['Single','Married'],email_verified:['YES','NO'],
+   account_active:['YES','NO'],must_change_password:['YES','NO'],credential_action:['CREATE','RESET'],
+  } as Record<string,string[]>)[field.key]:undefined
+  if(values)for(let row=3;row<=1000;row++)sheet.getCell(row,index+5).dataValidation={type:'list',allowBlank:true,formulae:['"'+values.join(',')+'"']}
+ }
  const bytes=await book.xlsx.writeBuffer();return Buffer.from(bytes)
 }
 export async function parseWorkbook(bytes:Buffer,fields:Field[]):Promise<UploadRow[]>{
- const book=new ExcelJS.Workbook();await book.xlsx.load(bytes as unknown as ExcelJS.Buffer)
+ const book=new ExcelJS.Workbook();await book.xlsx.load(await normalizeSpreadsheetXml(bytes) as unknown as ExcelJS.Buffer)
  const sheet=book.getWorksheet('Employees');if(!sheet)throw Error('The Employees sheet is missing')
  if(sheet.rowCount>1002)throw Error('Maximum 1,000 employee rows per upload')
  const known=new Map(fields.map(f=>[f.header,f]));const headers=new Map<string,number>()
@@ -139,8 +197,8 @@ export async function parseWorkbook(bytes:Buffer,fields:Field[]):Promise<UploadR
   const name=inputText(row.getCell(headers.get('Employee Name')!));if(!name)throw Error(`Row ${r}: Employee Name is required`)
   const mode=inputText(row.getCell(headers.get(MODE_HEADER)!)).toUpperCase();if(action==='UPDATE'&&mode!=='YES'&&mode!=='NO')throw Error(`Row ${r}: choose YES or NO for replacement`)
   if(action==='NEW'&&mode&&!['YES','NO'].includes(mode))throw Error(`Row ${r}: NEW replacement choice must be blank, YES or NO`)
-  const item:UploadRow={action,reference,employeeNo,name,replace:action==='NEW'||mode==='YES',core:{},profile:{},payroll:{},family:[]}
-  for(const [header,col]of headers){const field=known.get(header);if(!field)continue;if(field.bucket==='payroll'&&[...payrollProfileFields].some(label=>field.key===fieldKey(label)))continue;const value=inputText(row.getCell(col));if(value){if(value.length>5000)throw Error(`Row ${r}: ${header} is too long`);item[field.bucket][field.key]=value}}
+  const item:UploadRow={action,reference,employeeNo,name,replace:action==='NEW'||mode==='YES',core:{},profile:{},payroll:{},control:{},family:[]}
+  for(const [header,col]of headers){const field=known.get(header);if(!field)continue;if(field.bucket==='payroll'&&[...payrollProfileFields].some(label=>field.key===fieldKey(label)))continue;const value=inputText(row.getCell(col));if(value){if(value.length>5000)throw Error(`Row ${r}: ${header} is too long`);(item[field.bucket]??={})[field.key]=value}}
   result.push(item)
  }
  if(!result.length)throw Error('No employee rows found')
@@ -181,8 +239,32 @@ export function planUpload(rows:UploadRow[],snapshot:Snapshot,fields:Field[]):Pl
   if(!employee)throw Error(`Employee ID ${row.employeeNo} does not exist`)
   const detail=isNew?{employee_id:reference,profile:{},payroll_sep_2026:{},updated_at:''}:details.get(employee.id)
   if(!detail)throw Error(`Employee details missing for ${row.employeeNo}`)
-  const family=families.get(employee.id),children=[...(family?.children??[])],planned:PlannedRow={action:isNew?'NEW':'UPDATE',reference,employeeNo:row.employeeNo,name:row.name,replace:row.replace,expectedCoreUpdatedAt:employee.updated_at,expectedDetailsUpdatedAt:detail.updated_at,expectedFamilyUpdatedAt:family?.updated_at??null,core:{},profile:{},payroll:{},family:[],fill:0,overwrite:0,skipped:0,unchanged:0,changes:[]}
-  for(const bucket of ['core','profile','payroll'] as const)for(const [key,after]of Object.entries(row[bucket])){const before=cellText(bucket==='core'?employee[key as keyof EmployeeRow]:bucket==='profile'?(detail.profile??{})[key]:(detail.payroll_sep_2026??{})[key]);if(before===after){planned.unchanged++;continue}
+  const family=families.get(employee.id),children=[...(family?.children??[])],planned:PlannedRow={action:isNew?'NEW':'UPDATE',reference,employeeNo:row.employeeNo,name:row.name,replace:row.replace,expectedCoreUpdatedAt:employee.updated_at,expectedDetailsUpdatedAt:detail.updated_at,expectedFamilyUpdatedAt:family?.updated_at??null,core:{},profile:{},payroll:{},control:{},expectedAccount:JSON.stringify((snapshot.accounts??[]).find(a=>a.employee_id===employee.id)??null),family:[],fill:0,overwrite:0,skipped:0,unchanged:0,changes:[]}
+  const controlBefore=controlValues(employee,family,(snapshot.accounts??[]).find(a=>a.employee_id===employee.id))
+  for(const [key,after] of Object.entries(row.control??{})){
+   if(!after||key==='email_verified')continue
+   if(controlBefore[key]===after)continue
+   if(['account_active','must_change_password'].includes(key)&&!['YES','NO'].includes(after))throw Error('Credential flags must be YES or NO')
+   if(key==='employment_state'&&!['active','inactive'].includes(after))throw Error('Employment Status must be active or inactive')
+   if(key==='marital_status'&&!['Single','Married'].includes(after))throw Error('Marital Status must be Single or Married')
+   if(key==='credential_action'&&!['CREATE','RESET'].includes(after))throw Error('Credential action must be CREATE or RESET')
+   const allowed=isNew||row.replace||!controlBefore[key]
+   if(allowed){planned.control[key]=after;planned.overwrite++}else planned.skipped++
+   planned.changes.push({field:labels.get('control.'+key)??key,before:controlBefore[key]??'',after,action:allowed?'replace':'skip'})
+  }
+  if(planned.control.login_email&&row.control?.email_verified!=='YES')throw Error('Confirm ownership of the new sign-in email with YES')
+  if(planned.control.login_email&&!isNew&&!(snapshot.accounts??[]).some(a=>a.employee_id===employee.id)&&planned.control.credential_action!=='CREATE')throw Error('Choose CREATE to set the sign-in email for an employee without an account')
+  if(planned.control.login_email)planned.control.email_verified='YES'
+  if(planned.control.credential_action==='RESET'){
+   if(planned.control.must_change_password==='NO')throw Error('RESET requires a password change at next sign-in')
+   if(controlBefore.must_change_password!=='YES'&&!planned.control.must_change_password){
+    planned.control.must_change_password='YES';planned.overwrite++
+    planned.changes.push({field:'Credentials | Require Password Change (YES/NO)',before:controlBefore.must_change_password??'',after:'YES',action:'replace'})
+   }
+  }
+  if(planned.control.employment_state==='inactive'&&(!/^\d{4}-\d{2}-\d{2}$/.test(row.control?.leaving_date??'')||(row.control?.status_reason??'').trim().length<5))throw Error('Deactivation requires Leaving Date and a reason of at least five characters')
+  if(row.family.length&&(planned.control.marital_status??family?.marital_status)!=='Married'&&('marital_status' in (row.control??{})))throw Error('Select Married before adding family members')
+  for(const bucket of ['core','profile','payroll'] as const)for(const [key,after]of Object.entries(row[bucket])){const before=cellText(bucket==='core'?employee[key as keyof EmployeeRow]:bucket==='profile'?(key==='gender'?(detail.profile?.gender||'Male'):(detail.profile??{})[key]):(detail.payroll_sep_2026??{})[key]);if(before===after){planned.unchanged++;continue}
    const action: 'fill'|'replace'|'skip'=before?'replace':'fill';const allowed=action==='fill'||row.replace
    if(allowed){planned[bucket][key]=after;if(action==='fill')planned.fill++;else planned.overwrite++}else planned.skipped++
    planned.changes.push({field:labels.get(`${bucket}.${key}`)??key,before,after,action:allowed?action:'skip'})

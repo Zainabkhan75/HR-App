@@ -1,4 +1,4 @@
-import {provisionEmployeeLogin} from '../../../../lib/employee-login-server'
+import {runBulkCredentialJobs} from '../../../../lib/bulk-credential-jobs'
 import {NextResponse} from 'next/server'
 import {sameOriginRequest} from '../../../../lib/signin-server'
 import {fieldsFor,fileHash,parseWorkbook,planUpload} from '../../../../lib/bulk-upload'
@@ -16,31 +16,29 @@ export async function POST(request:Request){
   const form=await request.formData(),file=form.get('file'),action=form.get('action')
   if(!(file instanceof File)||!['preview','apply'].includes(String(action)))return json({error:'Choose an Excel file and action'},400)
   if(file.size>4_000_000)return json({error:'File exceeds 4 MB'},413)
-  const bytes=Buffer.from(await file.arrayBuffer()),hash=fileHash(bytes),snapshot=await readSnapshot(ctx.db),fields=fieldsFor(snapshot)
+  const bytes=Buffer.from(await file.arrayBuffer()),hash=fileHash(bytes)
+  if(action==='apply'){
+   const token=form.get('token');if(typeof token!=='string')return json({error:'Preview required'},400)
+   verifyPreview(token,hash)
+   const {data:previous,error:readError}=await serviceDb().from('bulk_upload_results').select('result').eq('actor_id',ctx.user.id).eq('file_hash',hash).maybeSingle()
+   if(readError)throw Error('Could not check previous upload')
+   if(previous)return json({...previous.result,logins:await runBulkCredentialJobs(ctx.user.id,hash)})
+  }
+  const snapshot=await readSnapshot(ctx.db),fields=fieldsFor(snapshot)
   const rows=await parseWorkbook(bytes,fields),planned=planUpload(rows,snapshot,fields)
   if(action==='preview'){
-   const token=signPreview({hash,expires:Date.now()+30*60*1000,timestamps:planned.map(r=>({reference:r.reference,action:r.action,employeeNo:r.employeeNo,core:r.expectedCoreUpdatedAt,details:r.expectedDetailsUpdatedAt,family:r.expectedFamilyUpdatedAt}))})
+   const token=signPreview({hash,expires:Date.now()+30*60*1000,timestamps:planned.map(r=>({reference:r.reference,action:r.action,employeeNo:r.employeeNo,core:r.expectedCoreUpdatedAt,details:r.expectedDetailsUpdatedAt,family:r.expectedFamilyUpdatedAt,account:r.expectedAccount}))})
    return json({rows:planned,token,totals:{employees:planned.length,fill:planned.reduce((n,r)=>n+r.fill,0),replace:planned.reduce((n,r)=>n+r.overwrite,0),skipped:planned.reduce((n,r)=>n+r.skipped,0)}})
   }
   const token=form.get('token');if(typeof token!=='string')return json({error:'Preview required'},400)
   const signed=verifyPreview(token,hash),byId=new Map(signed.timestamps.map(t=>[t.reference||t.employeeNo,t]))
-  if(byId.size!==planned.length||planned.some(r=>{const t=byId.get(r.reference);return !t||(t.action||'UPDATE')!==r.action||t.core!==r.expectedCoreUpdatedAt||t.details!==r.expectedDetailsUpdatedAt||t.family!==r.expectedFamilyUpdatedAt}))return json({error:'Employee data changed since preview. Preview the upload again'},409)
+  if(byId.size!==planned.length||planned.some(r=>{const t=byId.get(r.reference);return !t||(t.action||'UPDATE')!==r.action||t.core!==r.expectedCoreUpdatedAt||t.details!==r.expectedDetailsUpdatedAt||t.family!==r.expectedFamilyUpdatedAt||t.account!==r.expectedAccount}))return json({error:'Employee data changed since preview. Preview the upload again'},409)
   const changes=planned.filter(r=>r.action==='NEW'||r.fill+r.overwrite>0)
   if(!changes.length)return json({applied:0,fields:0})
-  const payload=changes.map(r=>({action:r.action,reference:r.reference,employee_no:r.employeeNo,expected_core_updated_at:r.expectedCoreUpdatedAt,expected_details_updated_at:r.expectedDetailsUpdatedAt,expected_family_updated_at:r.expectedFamilyUpdatedAt,replace:r.replace,core:r.core,profile:r.profile,payroll:r.payroll,family:r.family}))
+  const payload=changes.map(r=>({action:r.action,reference:r.reference,employee_no:r.employeeNo,expected_core_updated_at:r.expectedCoreUpdatedAt,expected_details_updated_at:r.expectedDetailsUpdatedAt,expected_family_updated_at:r.expectedFamilyUpdatedAt,replace:r.replace,core:r.core,profile:r.profile,payroll:r.payroll,family:r.family,control:r.control,expected_account:JSON.parse(r.expectedAccount)}))
   const admin=serviceDb()
-  const {data,error}=await admin.rpc('apply_september_employee_bulk_upload_v2',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
+  const {data,error}=await admin.rpc('apply_complete_employee_bulk_upload',{p_rows:payload,p_actor:ctx.user.id,p_file_hash:hash})
   if(error) return json({error:'Upload was not applied. Employee data may have changed; preview again.',detail:error.message},409)
-  const logins:Record<string,unknown>[]=[]
-  const added=data?.created??[]
-  for(let start=0;start<added.length;start+=5){await Promise.all(added.slice(start,start+5).map(async(created:{employee_no:string;name:string})=>{
-   try{
-    const {data:employee,error:lookup}=await admin.from('employees').select('id').eq('employee_no',created.employee_no).single()
-    if(lookup||!employee)throw Error('Employee saved; could not retrieve login details')
-    const login=await provisionEmployeeLogin(admin,employee.id,ctx.user.id)
-    logins.push({...login,status:'created'})
-   }catch(e){logins.push({employee_no:created.employee_no,full_name:created.name,status:'pending',reason:e instanceof Error?e.message:'Login creation pending'})}
-  }));}
-  return json({applied:changes.length,fields:data?.fields??changes.reduce((n,r)=>n+r.fill+r.overwrite,0),created:data?.created??[],newEmployees:data?.created?.length??0,logins})
+  return json({...data,logins:await runBulkCredentialJobs(ctx.user.id,hash)})
  }catch(error){return json({error:error instanceof Error?error.message:'Upload failed'},400)}
 }

@@ -182,7 +182,7 @@ export default function Directory({email}:{email:string}) {
  }return <label key={key} className={key==="permanent_address"?"field-label-exact":undefined}>{key==='probation'?'Probation (Months)':key==='salary_transfer_method'?'Method of Payment':label}{key==='offer_date'?<>
   <input readOnly value={displayShortDate(calculatedConfirmationDate)} placeholder="Calculated from joining date and probation"/>
   {!calculatedConfirmationDate&&<span className="field-hint">Enter Date of Joining and Probation (months) to calculate this date.</span>}
- </>:key==='salary_transfer_method'?<select value={detail.profile[key]??''} disabled={busy||!detailsReady} onChange={event=>editField(key,event.target.value,'profile')}>
+ </>:key==='gender'?<select value={detail.profile.gender||'Male'} disabled={busy} onChange={event=>editField('gender',event.target.value,'profile')}><option>Male</option><option>Female</option></select>:key==='salary_transfer_method'?<select value={detail.profile[key]??''} disabled={busy||!detailsReady} onChange={event=>editField(key,event.target.value,'profile')}>
   <option value="">Select a payment method</option>
   {detail.profile[key]&&!paymentMethods.includes(detail.profile[key])&&<option value={detail.profile[key]} disabled>{detail.profile[key]} (previously recorded)</option>}
   {paymentMethods.map(method=><option key={method} value={method}>{method}</option>)}

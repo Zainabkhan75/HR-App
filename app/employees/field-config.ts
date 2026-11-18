@@ -11,7 +11,7 @@ export const payrollFields = [
 
 export const sections = [
  {key:'current-payroll', title:'Employees Payroll Details', labels:payrollFields},
- {key:'personal', title:'Personal & Contact', labels:['CNIC / Passport','Work Mobile Number','Work Email','Personal Email','Personal Mobile Number','Current Address','Date of Birth','Permanent Address (as per ID card)','Emergency Contact Full Name','Emergency Contact Relationship','Primary Emergency Contact Number','Alternative Emergency Number']},
+ {key:'personal', title:'Personal & Contact', labels:['Gender','CNIC / Passport','Work Mobile Number','Work Email','Personal Email','Personal Mobile Number','Current Address','Date of Birth','Permanent Address (as per ID card)','Emergency Contact Full Name','Emergency Contact Relationship','Primary Emergency Contact Number','Alternative Emergency Number']},
  {key:'background', title:'Previous Employment & Education', labels:['Previous Employer Company Name','Previous Designation','Previous Employment Start','Previous Employment End','Latest Education','Education Start','Education End']},
  {key:'employment', title:'Employment & Organisation', labels:['Employment Type','Date of Joining','Work Location / Mobility','Probation','Offer Date','Acceptance / Joining Confirmation Due','Reporting to']},
  {key:'salary', title:'Salary Slip', labels:['Medical Hospitalisation Limit / Person / Year (PKR)','Life Insurance','Car Entitlement','Salary Transfer Method','Bank Name','Bank Branch','Bank Account Title','Bank Account Number','IBAN']},

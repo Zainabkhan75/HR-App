@@ -150,7 +150,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
     </select>:key==='designation'?<DesignationSelect titles={options?designationTitles(options,draft.department??''):null} value={draft[key]} disabled={busy} onChange={value=>setDraft(old=>({...old,[key]:value}))}/>:key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
      <option value="">Select a qualification level</option>
      {selectChoices(qualificationLevels,draft[key]).map(level=><option key={level} value={level}>{level}</option>)}
-    </select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value,...(key==='department'&&!designationTitles(options,event.target.value).includes(old.designation)?{designation:''}:{})}))}>
+    </select>:key==='gender'?<select value={draft[key]||'Male'} disabled={busy} onChange={event=>setDraft(old=>({...old,gender:event.target.value}))}><option>Male</option><option>Female</option></select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value,...(key==='department'&&!designationTitles(options,event.target.value).includes(old.designation)?{designation:''}:{})}))}>
      <option value="">{options?'Select an option':'Loading options...'}</option>
      {selectChoices(key==='department'?departmentNames(options):options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{option}</option>)}
     </select>:key==='probation'?<>

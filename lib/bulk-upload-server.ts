@@ -11,12 +11,12 @@ export async function uploadContext(){
  return{status:200 as const,db,user}
 }
 export async function readSnapshot(db:Awaited<ReturnType<typeof serverSupabase>>):Promise<Snapshot>{
- const [employees,details,families]=await Promise.all([db.from('employees').select('id,employee_no,full_name,designation,department,reports_to_text,location,updated_at').order('employee_no').limit(2000),db.from('employee_details').select('employee_id,profile,payroll_sep_2026,updated_at').limit(2000),db.from('employee_family_details').select('employee_id,spouse,children,updated_at').limit(2000)])
- if(employees.error||details.error||families.error||!employees.data||!details.data||!families.data)throw Error('Employee data unavailable')
- return{employees:employees.data as Snapshot['employees'],details:details.data as Snapshot['details'],families:families.data as Snapshot['families']}
+ const [employees,details,families,accounts]=await Promise.all([db.from('employees').select('id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,employment_state,leaving_date,updated_at').order('employee_no').limit(2000),db.from('employee_details').select('employee_id,profile,payroll_sep_2026,updated_at').limit(2000),db.from('employee_family_details').select('employee_id,spouse,children,marital_status,updated_at').limit(2000),db.from('employee_accounts').select('employee_id,user_id,username,login_email,is_active,must_change_password').order('employee_id').limit(2000)])
+ if(employees.error||details.error||families.error||accounts.error||!employees.data||!details.data||!families.data||!accounts.data)throw Error('Employee data unavailable')
+ return{employees:employees.data as Snapshot['employees'],details:details.data as Snapshot['details'],families:families.data as Snapshot['families'],accounts:accounts.data as Snapshot['accounts']}
 }
 export function serviceDb(){const key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!key)throw Error('Bulk upload service unavailable');return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,key,{auth:{persistSession:false,autoRefreshToken:false}})}
-type TokenPayload={hash:string;expires:number;timestamps:{reference?:string;action?:'NEW'|'UPDATE';employeeNo:string;core:string;details:string;family:string|null}[]}
+type TokenPayload={hash:string;expires:number;timestamps:{reference?:string;action?:'NEW'|'UPDATE';employeeNo:string;core:string;details:string;family:string|null;account?:string}[]}
 function key(){const value=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!value)throw Error('Bulk upload service unavailable');return value}
 export function signPreview(payload:TokenPayload):string{const encoded=Buffer.from(JSON.stringify(payload)).toString('base64url');const signature=createHmac('sha256',key()).update(encoded).digest('base64url');return `${encoded}.${signature}`}
 export function verifyPreview(token:string,hash:string):TokenPayload{

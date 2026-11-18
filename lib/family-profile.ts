@@ -1,5 +1,5 @@
 export type FamilyMember={full_name:string;age:number;date_of_birth?:string;pre_existing_conditions:string;cnic:string}
-export type FamilyDetails={spouse:FamilyMember|null;children:FamilyMember[];updated_at:string|null}
+export type FamilyDetails={spouse:FamilyMember|null;children:FamilyMember[];marital_status?:'Single'|'Married'|null;updated_at:string|null}
 export type MemberDraft={key:string;full_name:string;age:string;date_of_birth:string;pre_existing_conditions:string;cnic:string}
 export const memberDraft=(member?:FamilyMember):MemberDraft=>({key:crypto.randomUUID(),full_name:member?.full_name??'',age:member?String(member.age):'',date_of_birth:member?.date_of_birth??'',pre_existing_conditions:member?.pre_existing_conditions??'',cnic:member?.cnic??''})
 export function memberValue(draft:MemberDraft):FamilyMember{

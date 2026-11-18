@@ -4,7 +4,7 @@ import {fieldKey,payrollFields} from '../app/employees/field-config'
 
 // ExcelJS expects unprefixed SpreadsheetML element names. The Bandana
 // template exporter writes the same elements with the x: prefix.
-async function normalizeSpreadsheetXml(bytes:Buffer){
+export async function normalizeSpreadsheetXml(bytes:Buffer){
  const zip=await JSZip.loadAsync(bytes)
  const declaration='xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
  let changed=false

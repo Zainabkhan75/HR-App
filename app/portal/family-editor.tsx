@@ -20,18 +20,19 @@ export default function FamilyEditor({active,employeeId,onDirtyChange,onBusyChan
  const [base,setBase]=useState<FamilyDetails|null>(null)
  const [spouse,setSpouse]=useState<MemberDraft|null>(null)
  const [children,setChildren]=useState<MemberDraft[]>([])
+ const [maritalStatus,setMaritalStatus]=useState('')
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[conflict,setConflict]=useState(false)
  const draft={spouse:spouse?memberValue(spouse):null,children:children.map(memberValue)}
- const dirty=!!base&&familySnapshot(draft)!==familySnapshot(base)
+ const dirty=!!base&&(maritalStatus!==(base.marital_status??'')||(maritalStatus==='Married'&&familySnapshot(draft)!==familySnapshot(base)))
  function populate(value:FamilyDetails){
-  setBase(value);setSpouse(value.spouse?memberDraft(value.spouse):null);setChildren(value.children.map(memberDraft));setConflict(false)
+  setBase(value);setMaritalStatus(value.marital_status??'');setSpouse(value.spouse?memberDraft(value.spouse):null);setChildren(value.children.map(memberDraft));setConflict(false)
  }
  async function load(){
   setLoading(true);setError('');setNotice('')
   try{
    const db=browserDb()
    const {data,error:loadError}=employeeId
-    ?await db.from('employee_family_details').select('spouse,children,updated_at').eq('employee_id',employeeId).maybeSingle()
+    ?await db.from('employee_family_details').select('spouse,children,marital_status,updated_at').eq('employee_id',employeeId).maybeSingle()
     :await db.rpc('my_family_details')
    if(loadError||(!employeeId&&!data)){setError('Could not load family details. Please try again.');return}
    populate((data as FamilyDetails|null)??{spouse:null,children:[],updated_at:null})
@@ -46,17 +47,20 @@ export default function FamilyEditor({active,employeeId,onDirtyChange,onBusyChan
   event.preventDefault()
   if(!base||busy||conflict||!dirty)return
   setError('');setNotice('')
-  for(const person of [...(spouse?[spouse]:[]),...children]){
+  if(!['Single','Married'].includes(maritalStatus)){setError('Choose a marital status.');return}
+  for(const person of maritalStatus==='Married'?[...(spouse?[spouse]:[]),...children]:[]){
    const validation=memberError(person,person===spouse)
    if(validation){setError(validation);return}
   }
   setBusy(true)
   try{
    const db=browserDb()
-   const payload={p_spouse:draft.spouse,p_children:draft.children,p_expected_updated_at:base.updated_at}
-   const {data,error:saveError}=employeeId
-    ?await db.rpc('save_employee_family_details',{...payload,p_employee_id:employeeId})
-    :await db.rpc('save_my_family_details',payload)
+   const {data,error:saveError}=await db.rpc('save_family_with_marital_status',{
+    p_employee_id:employeeId??null,p_marital_status:maritalStatus,
+    p_spouse:maritalStatus==='Married'?draft.spouse:base.spouse,
+    p_children:maritalStatus==='Married'?draft.children:base.children,
+    p_expected_updated_at:base.updated_at,
+   })
    if(saveError||!data){
     setConflict(saveError?.code==='40001'||!data)
     setError(saveError?.code==='40001'?'Family details changed elsewhere. Reload before saving.':saveError?.code==='22023'?'Check each dependant’s name, date of birth, age and CNIC. CNIC is required for every spouse and children aged 18 or older.':'Could not confirm the save. Reload before trying again.')
@@ -67,20 +71,24 @@ export default function FamilyEditor({active,employeeId,onDirtyChange,onBusyChan
   finally{setBusy(false)}
  }
  return <section className="panel" hidden={!active}>
-  <h2>Family & dependants</h2><p>Details for health insurance. You may record one spouse and add children individually.</p>
-  <p className="muted">CNIC is required for every spouse and children aged 18 or older. It is optional for children under 18. {employeeId?'These details are visible to the employee and HR.':'These details are visible only to you and HR.'}</p>
+  <h2>Family & dependants</h2>
   {loading?<p role="status">Loading family details...</p>:null}
   {error?<p role="alert" className="error">{error}</p>:null}
   {notice?<p role="status" className="notice">{notice}</p>:null}
   {!base&&!loading?<button type="button" onClick={()=>void load()}>Try loading again</button>:null}
   {conflict?<div><p>Reloading clears unsaved family changes.</p><button type="button" disabled={busy||loading} onClick={()=>void load()}>Reload family details</button></div>:null}
   {base?<form onSubmit={save}>
+   <label>Marital status<select required value={maritalStatus} disabled={busy||loading} onChange={event=>setMaritalStatus(event.target.value)}><option value="">Select marital status</option><option>Single</option><option>Married</option></select></label>
+   {maritalStatus==='Married'&&<>
+   <p>Details for health insurance. You may record one spouse and add children individually.</p>
+   <p className="muted">CNIC is required for every spouse and children aged 18 or older. It is optional for children under 18.</p>
    <h3>Spouse</h3>
    {spouse?<fieldset className="family-person"><legend>Spouse</legend><PersonFields isSpouse person={spouse} disabled={busy||loading} onChange={setSpouse}/><button type="button" className="secondary" disabled={busy||loading} onClick={()=>setSpouse(null)}>Remove spouse</button></fieldset>:<><p>No spouse recorded.</p><button type="button" className="secondary" disabled={busy||loading} onClick={()=>setSpouse(memberDraft())}>Add spouse</button></>}
    <h3>Children</h3>
    {children.length===0?<p>No children recorded.</p>:null}
    {children.map((child,index)=><fieldset className="family-person" key={child.key}><legend>Child {index+1}</legend><PersonFields person={child} disabled={busy||loading} onChange={updated=>setChildren(old=>old.map(row=>row.key===child.key?updated:row))}/><button type="button" className="secondary" disabled={busy||loading} onClick={()=>setChildren(old=>old.filter(row=>row.key!==child.key))}>Remove child {index+1}</button></fieldset>)}
    <button type="button" className="secondary" disabled={busy||loading} onClick={()=>setChildren(old=>[...old,memberDraft()])}>Add child</button>
+   </>}
    <div className="ess-form-actions"><button type="submit" disabled={busy||loading||!dirty||conflict}>{busy?'Saving...':'Save family details'}</button><button type="button" className="secondary" disabled={busy||loading||!dirty} onClick={()=>{populate(base);setError('');setNotice('Unsaved family changes cleared.')}}>Cancel changes</button></div>
   </form>:null}
  </section>
