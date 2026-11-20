@@ -1,8 +1,7 @@
 'use client'
 import DateInput from '../date-input'
 import FamilyEditor from '../portal/family-editor'
-import DesignationSelect from '../designation-select'
-import {confirmationDate,paymentMethods,employmentChoice,isDropdown,qualificationLevels,selectChoices,designationTitles,departmentNames} from '../../lib/profile-inputs'
+import {confirmationDate,paymentMethods,employmentChoice,isDropdown,qualificationLevels,selectChoices} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 import {employmentFields} from '../../lib/ess-profile'
 import {displayShortDate,isIsoDate,isProfileDateField} from '../../lib/date-input'
@@ -14,7 +13,8 @@ import {formatMoneyField,isMoneyField} from '../../lib/money'
 import {emailRecipients} from '../../lib/employee-emails'
 import {sections,fieldKey,payrollFields,payrollProfileFields,payrollPeriodLabel} from './field-config'
 import {reportingLabel,occupantLabel,type Hierarchy} from '../../lib/ess-profile'
-type Employee={employee_details?:{manager_no:string|null;email:string|null;personal_email:string|null}|null;id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;leaving_date:string|null;employment_state:'active'|'inactive'}
+type PositionOption={id:number;position_code:string|null;department_id:number;designation_id:number;title:string;location:string|null;reports_to_position_id:number|null}
+type Employee={position_id:number|null;employee_details?:{manager_no:string|null;email:string|null;personal_email:string|null}|null;id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;leaving_date:string|null;employment_state:'active'|'inactive'}
 type Detail={payroll_sep_2026:Record<string,string>;profile:Record<string,string>}
 const baseFields:[Exclude<keyof Employee,'employee_details'>,string][]=[['full_name','Full name'],['department','Department'],['designation','Designation'],['reports_to_text','Reports To'],['location','Location'],['source_note','Source / verification note']]
 type Credentials={employee_no:string;full_name:string;username:string;initial_password:string}
@@ -27,10 +27,14 @@ export default function Directory({email}:{email:string}) {
  const [originalProfile,setOriginalProfile]=useState<Detail['profile']>({})
  const [detailsReady,setDetailsReady]=useState(false)
  const [profileOptions,setProfileOptions]=useState<ProfileOptions|null>(null)
- const [designations,setDesignations]=useState<string[]|null>(null)
+ const [positions,setPositions]=useState<PositionOption[]>([])
+ const [positionId,setPositionId]=useState('')
+ const [departmentFilter,setDepartmentFilter]=useState('')
+ const [designationFilter,setDesignationFilter]=useState('')
+ const [positionListReady,setPositionListReady]=useState(false)
  const [action,setAction]=useState<{type:'deactivate'|'reactivate'|'delete';row:Employee}|null>(null),[reason,setReason]=useState(''),[confirm,setConfirm]=useState(''),[leavingDate,setLeavingDate]=useState('')
  const [hierarchy,setHierarchy]=useState(new Map<string,Hierarchy>())
- async function refresh(){setLoading(true);const [directory,lines]=await Promise.all([browserDb().from('employees').select('id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,employment_state,leaving_date,employee_details(manager_no:profile->>line_manager_employee_no,email:profile->>email,personal_email:profile->>personal_email)').order('employee_no',{ascending:true}).limit(2000),browserDb().rpc('hr_reporting_directory').order('employee_id').limit(2000)]);const {data,error}=directory;setHierarchy(new Map(((lines.data??[]) as Hierarchy[]).map(line=>[line.employee_id,line])));setRows((data??[]) as unknown as Employee[]);setError(error?.message??lines.error?.message??'');setLoading(false)}
+ async function refresh(){setLoading(true);const [directory,lines]=await Promise.all([browserDb().from('employees').select('id,position_id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,employment_state,leaving_date,employee_details(manager_no:profile->>line_manager_employee_no,email:profile->>email,personal_email:profile->>personal_email)').order('employee_no',{ascending:true}).limit(2000),browserDb().rpc('hr_reporting_directory').order('employee_id').limit(2000)]);const {data,error}=directory;setHierarchy(new Map(((lines.data??[]) as Hierarchy[]).map(line=>[line.employee_id,line])));setRows((data??[]) as unknown as Employee[]);setError(error?.message??lines.error?.message??'');setLoading(false)}
  useEffect(()=>{void refresh();void loadDesignations()},[])
  async function refreshAccounts(){const {data}=await browserDb().from('employee_accounts').select('employee_id,username');setAccounts(Object.fromEntries((data??[]).map(a=>[a.employee_id,a.username])))}
  useEffect(()=>{void refreshAccounts()},[rows])
@@ -52,11 +56,7 @@ export default function Directory({email}:{email:string}) {
   }catch(error){setError(error instanceof Error?error.message:'Login creation failed');return false}
   finally{setBusy(false)}
  }
- const employeesByNumber=useMemo(()=>new Map(rows.map(row=>[row.employee_no,row])),[rows])
  function reportingDesignation(row:Employee){return reportingLabel(hierarchy.get(row.id))}
- const managerChoices=rows.filter(row=>row.id!==selected?.id&&row.designation?.trim().toLowerCase()===values.reports_to_text?.toLowerCase()&&row.employment_state==='active')
- const savedManagerNumber=detail.profile.line_manager_employee_no??''
- const showRecordedManager=savedManagerNumber&&!managerChoices.some(row=>row.employee_no===savedManagerNumber)
  const directorySort=useTableSort('employee_no')
  const matches=useMemo(()=>rows.filter(x=>(filter==='all'||x.employment_state===filter)&&[x.employee_no,x.full_name,x.designation,x.department,x.location].some(v=>(v??'').toLowerCase().includes(q.toLowerCase()))),[rows,q,filter])
  const activeRows=rows.filter(row=>row.employment_state==='active')
@@ -69,17 +69,49 @@ export default function Directory({email}:{email:string}) {
  ]
  const selectedMetric=exceptionMetrics[metricIndex]
  async function loadDesignations(){
-  const {data,error}=await browserDb().rpc('my_profile_options')
-  if(error||!data){setError('Could not load the profile dropdown lists.');return}
-  const options=data as ProfileOptions
-  setProfileOptions(options)
-  setDesignations(options.reports_to_text)
+  setPositionListReady(false)
+  const db=browserDb()
+  const [options,seats]=await Promise.all([
+   db.rpc('my_profile_options'),
+   db.from('positions').select('id,position_code,department_id,designation_id,title,location,reports_to_position_id').order('title').order('id'),
+  ])
+  if(options.error||!options.data||seats.error){setError('Could not load the profile dropdown lists.');return}
+  setProfileOptions(options.data as ProfileOptions)
+  setPositions((seats.data??[]) as PositionOption[])
+  setPositionListReady(true)
  }
- async function edit(row:Employee|null){void loadDesignations();setError('');setNotice('');setCheck('');setSelected(row);setDetailsReady(!row);setAdding(!row);setTab('core');setValues(Object.fromEntries(baseFields.map(([k])=>[k,row?.[k]??''])));setDetail({profile:{},payroll_sep_2026:{}});setOriginalProfile({});if(row){const {data,error}=await browserDb().from('employee_details').select('profile,payroll_sep_2026').eq('employee_id',row.id).maybeSingle();if(error){setError('Could not load extended details: '+error.message)}else{setDetailsReady(true);if(data){setOriginalProfile(data.profile??{});setDetail({profile:data.profile??{},payroll_sep_2026:data.payroll_sep_2026??{}})}}}}
+ const chosenPosition=positions.find(position=>String(position.id)===positionId)
+ const parentPosition=positions.find(position=>position.id===chosenPosition?.reports_to_position_id)
+ const parentOccupant=rows.find(row=>row.position_id===parentPosition?.id&&row.employment_state==='active'&&row.id!==selected?.id)
+ const occupiedPositions=new Set(rows.filter(row=>row.employment_state==='active'&&row.id!==selected?.id).map(row=>row.position_id))
+ const departmentOptions=profileOptions?.department_options??[]
+ const designationOptions=positions.filter(position=>!departmentFilter||String(position.department_id)===departmentFilter)
+ const availableDesignations=[...new Map(designationOptions.map(position=>[position.designation_id,position.title])).entries()]
+ const positionOptions=designationOptions.filter(position=>!designationFilter||String(position.designation_id)===designationFilter)
+ const positionLabel=(position:PositionOption)=>[position.position_code??position.id,position.title,position.location,departmentOptions.find(department=>department.id===position.department_id)?.name].filter(Boolean).join(' · ')
+ async function edit(row:Employee|null){
+ setPositionId(row?.position_id==null?'':String(row.position_id))
+ setDepartmentFilter('')
+ setDesignationFilter('')
+ void loadDesignations();setError('');setNotice('');setCheck('');setSelected(row);setDetailsReady(!row);setAdding(!row);setTab('core');setValues(Object.fromEntries(baseFields.map(([k])=>[k,row?.[k]??''])));setDetail({profile:{},payroll_sep_2026:{}});setOriginalProfile({});if(row){const {data,error}=await browserDb().from('employee_details').select('profile,payroll_sep_2026').eq('employee_id',row.id).maybeSingle();if(error){setError('Could not load extended details: '+error.message)}else{setDetailsReady(true);if(data){setOriginalProfile(data.profile??{});setDetail({profile:data.profile??{},payroll_sep_2026:data.payroll_sep_2026??{}})}}}}
  function close(){setSelected(null);setAdding(false);setAction(null)}
- async function save(e:React.FormEvent){e.preventDefault();if(!detailsReady)return;setBusy(true);setError('');const db=browserDb();const payload=Object.fromEntries(baseFields.map(([k])=>[k,values[k]?.trim()||null]));let resultId=selected?.id
+ async function save(e:React.FormEvent){e.preventDefault();if(!detailsReady||busy)return;setBusy(true);setError('');const db=browserDb();const payload:Record<string,string|number|null>={
+  full_name:values.full_name?.trim()||null,
+  location:values.location?.trim()||null,
+  source_note:values.source_note?.trim()||null,
+ };
+ if(!selected&&!chosenPosition){setBusy(false);setError('Select an available position.');return}
+ if(chosenPosition&&chosenPosition.id!==selected?.position_id)payload.position_id=chosenPosition.id;
+ let resultId=selected?.id
  if(selected){if(values.leaving_date!==undefined)payload.leaving_date=values.leaving_date||null;const r=await db.from('employees').update(payload).eq('id',selected.id);if(r.error){setBusy(false);setError(r.error.message);return}}
- else {const r=await db.rpc('create_employee',{p_full_name:values.full_name?.trim(),p_designation:values.designation?.trim()||null,p_department:values.department?.trim()||null,p_reports_to_text:values.reports_to_text?.trim()||null,p_location:values.location?.trim()||null,p_record_status:null,p_source_note:values.source_note?.trim()||null});if(r.error){setBusy(false);setError(r.error.message);return}const id=await db.from('employees').select('id').eq('employee_no',r.data).single();if(id.error){setBusy(false);setError('Employee created, but could not retrieve details: '+id.error.message);return}resultId=id.data.id}
+ else {
+  const r=await db.rpc('create_employee_at_position',{
+   p_full_name:values.full_name?.trim(),p_position_id:chosenPosition!.id,
+   p_location:payload.location,p_source_note:payload.source_note,
+  })
+  if(r.error){setBusy(false);setError(r.error.message);return}
+  resultId=r.data as string
+ }
  const profile=detail.profile.date_of_joining!==originalProfile.date_of_joining||detail.profile.probation!==originalProfile.probation
   ?{...detail.profile,offer_date:calculatedConfirmationDate}:detail.profile
  const emailChanged=!!selected&&['email','personal_email'].some(key=>
@@ -149,7 +181,31 @@ export default function Directory({email}:{email:string}) {
   const key=fieldKey(label)
   return <label key={key}>{label}<input readOnly value={formatMoneyField(key,detail.payroll_sep_2026[key])}/></label>
  })}
- </fieldset></>}{tab==='core'&&selected&&<label>Leaving date<DateInput value={values.leaving_date??selected.leaving_date??''} onChange={value=>setValues(v=>({...v,leaving_date:value}))}/></label>}{tab==='core'?baseFields.flatMap(([key,label])=>selected&&['reports_to_text','department'].includes(key)?[<label key={key}>{label}<input readOnly value={key==='department'?hierarchy.get(selected.id)?.department??'':reportingDesignation(selected)}/></label>,key==='reports_to_text'&&<label key="manager">Line Manager Name<input readOnly value={occupantLabel(hierarchy.get(selected.id))}/></label>]:[<label key={key}>{label}{key==='designation'||key==='reports_to_text'?<DesignationSelect titles={key==='designation'?designationTitles(profileOptions,values.department??''):designations} value={values[key]??''} disabled={busy} onChange={value=>{setValues(v=>({...v,[key]:value}));if(key==='reports_to_text')editField('line_manager_employee_no','','profile')}}/>:isDropdown(key)?<select value={values[key]??''} disabled={busy||!profileOptions} onChange={e=>{const value=e.target.value;setValues(v=>({...v,[key]:value,...(key==='department'&&!designationTitles(profileOptions,value).includes(v.designation)?{designation:''}:{})}))}}><option value="">Select an option</option>{selectChoices(key==='department'?departmentNames(profileOptions):profileOptions?.[key]??[],values[key]??'').map(option=><option key={option} value={option}>{option}</option>)}</select>:<input required={key==='full_name'} value={values[key]??''} onChange={e=>setValues(v=>({...v,[key]:e.target.value}))}/>}</label>,key==='reports_to_text'&&<label key="line-manager">Line Manager Name<select value={savedManagerNumber} disabled={busy||!detailsReady} onChange={e=>editField('line_manager_employee_no',e.target.value,'profile')}><option value="">Select a line manager</option>{showRecordedManager&&<option value={savedManagerNumber}>{employeesByNumber.get(savedManagerNumber)?.full_name??savedManagerNumber} (Recorded)</option>}{managerChoices.map(row=><option key={row.id} value={row.employee_no}>{row.full_name} · {row.employee_no}</option>)}</select></label>]):(tab==='employment'
+ </fieldset></>}{tab==='core'&&selected&&<label>Leaving date<DateInput value={values.leaving_date??selected.leaving_date??''} onChange={value=>setValues(v=>({...v,leaving_date:value}))}/></label>}{tab==='core'?<>
+  <label>Full name<input required value={values.full_name??''} onChange={e=>setValues(v=>({...v,full_name:e.target.value}))}/></label>
+  <label>Department filter<select value={departmentFilter} disabled={busy||!positionListReady} onChange={e=>{setDepartmentFilter(e.target.value);setDesignationFilter('')}}>
+   <option value="">All departments</option>
+   {departmentOptions.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}
+  </select></label>
+  <label>Designation filter<select value={designationFilter} disabled={busy||!positionListReady} onChange={e=>setDesignationFilter(e.target.value)}>
+   <option value="">All designations</option>
+   {availableDesignations.map(([id,title])=><option key={id} value={id}>{title}</option>)}
+  </select></label>
+  <label>Position<select value={positionId} required={adding} disabled={busy||!positionListReady} onChange={e=>setPositionId(e.target.value)}>
+   <option value="" disabled>Select a position</option>
+   {chosenPosition&&!positionOptions.includes(chosenPosition)&&<option value={chosenPosition.id}>{positionLabel(chosenPosition)}</option>}
+   {positionOptions.map(position=><option key={position.id} value={position.id} disabled={occupiedPositions.has(position.id)}>{positionLabel(position)}{occupiedPositions.has(position.id)?' (Occupied)':''}</option>)}
+  </select></label>
+  <label>Department<input readOnly value={(chosenPosition?departmentOptions.find(department=>department.id===chosenPosition.department_id)?.name:selected?.department)??''}/></label>
+  <label>Designation<input readOnly value={chosenPosition?.title??selected?.designation??''}/></label>
+  <label>Reports To<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?reportingDesignation(selected):parentPosition?.title??(chosenPosition?'Reporting position unassigned':'')}/></label>
+  <label>Line Manager Name<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?occupantLabel(hierarchy.get(selected.id)):parentOccupant?.full_name??(parentPosition?'Vacant':'')}/></label>
+  <label>Location<select value={values.location??''} disabled={busy||!profileOptions} onChange={e=>setValues(v=>({...v,location:e.target.value}))}>
+   <option value="">Select an option</option>
+   {selectChoices(profileOptions?.location??[],values.location??'').map(option=><option key={option} value={option}>{option}</option>)}
+  </select></label>
+  <label>Source / verification note<input value={values.source_note??''} onChange={e=>setValues(v=>({...v,source_note:e.target.value}))}/></label>
+ </>:(tab==='employment'
  ? employmentFields.map(([key,label])=>({key,label:key==='work_location_mobility'?'Work Location':label}))
  : sections.filter(s=>s.key===tab).flatMap(s=>s.key==='background'?[...s.labels,'Highest Qualification Level']:[...s.labels]).map(label=>({key:fieldKey(label),label}))
  ).map(({key,label})=>{const group=tab==='current-payroll'?'payroll_sep_2026':'profile';if(group==='payroll_sep_2026'&&payrollProfileFields.has(label)){
