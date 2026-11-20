@@ -14,7 +14,7 @@ import {emailRecipients} from '../../lib/employee-emails'
 import {sections,fieldKey,payrollFields,payrollProfileFields,payrollPeriodLabel} from './field-config'
 import {reportingLabel,occupantLabel,type Hierarchy} from '../../lib/ess-profile'
 type PositionOption={id:number;position_code:string|null;department_id:number;designation_id:number;title:string;location:string|null;reports_to_position_id:number|null}
-type Employee={position_id:number|null;employee_details?:{manager_no:string|null;email:string|null;personal_email:string|null}|null;id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;leaving_date:string|null;employment_state:'active'|'inactive'}
+type Employee={position_id:number|null;department_id:number|null;designation_id:number|null;employee_details?:{manager_no:string|null;email:string|null;personal_email:string|null}|null;id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;leaving_date:string|null;employment_state:'active'|'inactive'}
 type Detail={payroll_sep_2026:Record<string,string>;profile:Record<string,string>}
 const editableFields=['full_name','location','source_note'] as const
 type Credentials={employee_no:string;full_name:string;username:string;initial_password:string}
@@ -29,12 +29,13 @@ export default function Directory({email}:{email:string}) {
  const [profileOptions,setProfileOptions]=useState<ProfileOptions|null>(null)
  const [positions,setPositions]=useState<PositionOption[]>([])
  const [positionId,setPositionId]=useState('')
+ const [positionSearch,setPositionSearch]=useState('')
  const [departmentFilter,setDepartmentFilter]=useState('')
  const [designationFilter,setDesignationFilter]=useState('')
  const [positionListReady,setPositionListReady]=useState(false)
  const [action,setAction]=useState<{type:'deactivate'|'reactivate'|'delete';row:Employee}|null>(null),[reason,setReason]=useState(''),[confirm,setConfirm]=useState(''),[leavingDate,setLeavingDate]=useState('')
  const [hierarchy,setHierarchy]=useState(new Map<string,Hierarchy>())
- async function refresh(){setLoading(true);const [directory,lines]=await Promise.all([browserDb().from('employees').select('id,position_id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,employment_state,leaving_date,employee_details(manager_no:profile->>line_manager_employee_no,email:profile->>email,personal_email:profile->>personal_email)').order('employee_no',{ascending:true}).limit(2000),browserDb().rpc('hr_reporting_directory').order('employee_id').limit(2000)]);const {data,error}=directory;setHierarchy(new Map(((lines.data??[]) as Hierarchy[]).map(line=>[line.employee_id,line])));setRows((data??[]) as unknown as Employee[]);setError(error?.message??lines.error?.message??'');setLoading(false)}
+ async function refresh(){setLoading(true);const [directory,lines]=await Promise.all([browserDb().from('employees').select('id,position_id,department_id,designation_id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,employment_state,leaving_date,employee_details(manager_no:profile->>line_manager_employee_no,email:profile->>email,personal_email:profile->>personal_email)').order('employee_no',{ascending:true}).limit(2000),browserDb().rpc('hr_reporting_directory').order('employee_id').limit(2000)]);const {data,error}=directory;setHierarchy(new Map(((lines.data??[]) as Hierarchy[]).map(line=>[line.employee_id,line])));setRows((data??[]) as unknown as Employee[]);setError(error?.message??lines.error?.message??'');setLoading(false)}
  useEffect(()=>{void refresh();void loadDesignations()},[])
  async function refreshAccounts(){const {data}=await browserDb().from('employee_accounts').select('employee_id,username');setAccounts(Object.fromEntries((data??[]).map(a=>[a.employee_id,a.username])))}
  useEffect(()=>{void refreshAccounts()},[rows])
@@ -87,12 +88,16 @@ export default function Directory({email}:{email:string}) {
  const departmentOptions=profileOptions?.department_options??[]
  const designationOptions=positions.filter(position=>!departmentFilter||String(position.department_id)===departmentFilter)
  const availableDesignations=[...new Map(designationOptions.map(position=>[position.designation_id,position.title])).entries()]
- const positionOptions=designationOptions.filter(position=>!designationFilter||String(position.designation_id)===designationFilter)
  const positionLabel=(position:PositionOption)=>[position.position_code??position.id,position.title,position.location,departmentOptions.find(department=>department.id===position.department_id)?.name].filter(Boolean).join(' · ')
+ const positionOptions=designationOptions.filter(position=>
+  (!designationFilter||String(position.designation_id)===designationFilter)&&
+  positionLabel(position).toLowerCase().includes(positionSearch.trim().toLowerCase())
+ )
  async function edit(row:Employee|null){
  setPositionId(row?.position_id==null?'':String(row.position_id))
- setDepartmentFilter('')
- setDesignationFilter('')
+ setDepartmentFilter(row?.department_id==null?'':String(row.department_id))
+ setDesignationFilter(row?.designation_id==null?'':String(row.designation_id))
+ setPositionSearch(row?.designation??'')
  void loadDesignations();setError('');setNotice('');setCheck('');setSelected(row);setDetailsReady(!row);setAdding(!row);setTab('core');setValues(Object.fromEntries(editableFields.map(key=>[key,row?.[key]??''])));setDetail({profile:{},payroll_sep_2026:{}});setOriginalProfile({});if(row){const {data,error}=await browserDb().from('employee_details').select('profile,payroll_sep_2026').eq('employee_id',row.id).maybeSingle();if(error){setError('Could not load extended details: '+error.message)}else{setDetailsReady(true);if(data){setOriginalProfile(data.profile??{});setDetail({profile:data.profile??{},payroll_sep_2026:data.payroll_sep_2026??{}})}}}}
  function close(){setSelected(null);setAdding(false);setAction(null)}
  async function save(e:React.FormEvent){e.preventDefault();if(!detailsReady||busy)return;setBusy(true);setError('');const db=browserDb();const payload:Record<string,string|number|null>={
@@ -100,7 +105,7 @@ export default function Directory({email}:{email:string}) {
   location:values.location?.trim()||null,
   source_note:values.source_note?.trim()||null,
  };
- if(!selected&&!chosenPosition){setBusy(false);setError('Select an available position.');return}
+ if((!selected||selected.position_id!=null||departmentFilter!==String(selected.department_id??'')||designationFilter!==String(selected.designation_id??''))&&!chosenPosition){setBusy(false);setError('Select an available position.');return}
  if(chosenPosition&&chosenPosition.id!==selected?.position_id)payload.position_id=chosenPosition.id;
  let resultId=selected?.id
  if(selected){if(values.leaving_date!==undefined)payload.leaving_date=values.leaving_date||null;const r=await db.from('employees').update(payload).eq('id',selected.id);if(r.error){setBusy(false);setError(r.error.message);return}}
@@ -181,32 +186,33 @@ export default function Directory({email}:{email:string}) {
   const key=fieldKey(label)
   return <label key={key}>{label}<input readOnly value={formatMoneyField(key,detail.payroll_sep_2026[key])}/></label>
  })}
- </fieldset></>}{tab==='core'&&selected&&<label>Leaving date<DateInput value={values.leaving_date??selected.leaving_date??''} onChange={value=>setValues(v=>({...v,leaving_date:value}))}/></label>}{tab==='core'?<>
-  <label>Full name<input required value={values.full_name??''} onChange={e=>setValues(v=>({...v,full_name:e.target.value}))}/></label>
-  <label>Department filter<select value={departmentFilter} disabled={busy||!positionListReady} onChange={e=>{setDepartmentFilter(e.target.value);setDesignationFilter('')}}>
+ </fieldset></>}{tab==='core'?<>
+  <label>Full Name<input required value={values.full_name??''} onChange={e=>setValues(v=>({...v,full_name:e.target.value}))}/></label>
+  <label>Department<select value={departmentFilter} disabled={busy||!positionListReady} onChange={e=>{setDepartmentFilter(e.target.value);setDesignationFilter('');setPositionId('');setPositionSearch('')}}>
    <option value="">All departments</option>
    {departmentOptions.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}
   </select></label>
-  <label>Designation filter<select value={designationFilter} disabled={busy||!positionListReady} onChange={e=>setDesignationFilter(e.target.value)}>
+  <label>Designation<select value={designationFilter} disabled={busy||!positionListReady} onChange={e=>{const id=e.target.value;setDesignationFilter(id);setPositionId('');setPositionSearch(availableDesignations.find(([key])=>String(key)===id)?.[1]??'')}}>
    <option value="">All designations</option>
    {availableDesignations.map(([id,title])=><option key={id} value={id}>{title}</option>)}
   </select></label>
-  <label>Position<select value={positionId} required={adding} disabled={busy||!positionListReady} onChange={e=>setPositionId(e.target.value)}>
+  <fieldset>
+   <legend>Position</legend>
+   <label>Search positions<input type="search" value={positionSearch} disabled={busy||!positionListReady} onChange={e=>setPositionSearch(e.target.value)} placeholder="Search by title, code or location"/></label>
+   <select aria-label="Position" value={positionId} required={adding||!!selected?.position_id} disabled={busy||!positionListReady} onChange={e=>{const id=e.target.value;const position=positions.find(item=>String(item.id)===id);if(!position)return;setPositionId(id);setDepartmentFilter(String(position.department_id));setDesignationFilter(String(position.designation_id))}}>
    <option value="" disabled>Select a position</option>
    {chosenPosition&&!positionOptions.includes(chosenPosition)&&<option value={chosenPosition.id}>{positionLabel(chosenPosition)}</option>}
    {positionOptions.map(position=><option key={position.id} value={position.id} disabled={occupiedPositions.has(position.id)}>{positionLabel(position)}{occupiedPositions.has(position.id)?' (Occupied)':''}</option>)}
-  </select></label>
-  <label>Department<input readOnly value={(chosenPosition?departmentOptions.find(department=>department.id===chosenPosition.department_id)?.name:selected?.department)??''}/></label>
-  <label>Designation<input readOnly value={chosenPosition?.title??selected?.designation??''}/></label>
+   </select>
+  </fieldset>
   <label>Reports To<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?reportingDesignation(selected):parentPosition?.title??(chosenPosition?'Reporting position unassigned':'')}/></label>
   <label>Line Manager Name<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?occupantLabel(hierarchy.get(selected.id)):parentOccupant?.full_name??(parentPosition?'Vacant':'')}/></label>
   <label>Location<select value={values.location??''} disabled={busy||!profileOptions} onChange={e=>setValues(v=>({...v,location:e.target.value}))}>
    <option value="">Select an option</option>
    {selectChoices(profileOptions?.location??[],values.location??'').map(option=><option key={option} value={option}>{option}</option>)}
   </select></label>
-  <label>Source / verification note<input value={values.source_note??''} onChange={e=>setValues(v=>({...v,source_note:e.target.value}))}/></label>
- </>:null}{tab==='core'&&<h3>Employment &amp; Organisation</h3>}{(tab==='core'
- ? employmentFields.map(([key,label])=>({key,label:key==='work_location_mobility'?'Work Location':label}))
+ </>:null}{tab==='core'&&<h3>Employment</h3>}{(tab==='core'
+ ? [employmentFields[0],employmentFields[1],employmentFields[4],employmentFields[2],employmentFields[3]].map(([key,label])=>({key,label:key==='work_location_mobility'?'Work Location':key==='employment_type'?'Employment Type':label}))
  : sections.filter(s=>s.key===tab).flatMap(s=>s.key==='background'?[...s.labels,'Highest Qualification Level']:[...s.labels]).map(label=>({key:fieldKey(label),label}))
  ).map(({key,label})=>{const group=tab==='current-payroll'?'payroll_sep_2026':'profile';if(group==='payroll_sep_2026'&&payrollProfileFields.has(label)){
  const value=label==='Employee ID#'?selected?.employee_no:label==='Full Name'?values.full_name:label==='Designation'?(chosenPosition?.title??selected?.designation):detail.profile.date_of_joining
@@ -218,7 +224,7 @@ export default function Directory({email}:{email:string}) {
   <option value="">Select a payment method</option>
   {detail.profile[key]&&!paymentMethods.includes(detail.profile[key])&&<option value={detail.profile[key]} disabled>{detail.profile[key]} (previously recorded)</option>}
   {paymentMethods.map(method=><option key={method} value={method}>{method}</option>)}
- </select>:group==='profile'&&(key==='highest_qualification_level'||isDropdown(key))?<select value={detail.profile[key]??''} disabled={busy||(key!=='highest_qualification_level'&&!profileOptions)} onChange={e=>{const value=e.target.value;if(key==='employment_type'){setDetail(d=>({...d,profile:employmentChoice(d.profile,value)}))}else editField(key,value,'profile')}}><option value="">Select an option</option>{selectChoices(key==='highest_qualification_level'?qualificationLevels:isDropdown(key)?profileOptions?.[key]??[]:[],detail.profile[key]??'').map(option=><option key={option} value={option}>{option}</option>)}</select>:isMoneyField(key)?<MoneyInput value={detail[group][key]??''} onChange={value=>editField(key,value,group)}/>:isProfileDateField(key)?<DateInput birthDate={key==='date_of_birth'} value={detail[group][key]??''} onChange={value=>editField(key,value,group)}/>:key==='probation'?<input type="number" min={0} max={6} step={1} readOnly={detail.profile.employment_type==='Permanent'} value={detail.profile.probation??''} onChange={e=>editField(key,e.target.value,'profile')}/>:<input value={detail[group][key]??''} onChange={e=>editField(key,e.target.value,group)}/>}</label>})}<div className="savebar"><button disabled={busy||!detailsReady} type="submit">{busy?'Saving.':'Save employee'}</button><span className="muted">Blank values are retained as blank.</span></div></form>}</div></div>}
+ </select>:group==='profile'&&(key==='highest_qualification_level'||isDropdown(key))?<select value={detail.profile[key]??''} disabled={busy||(key!=='highest_qualification_level'&&!profileOptions)} onChange={e=>{const value=e.target.value;if(key==='employment_type'){setDetail(d=>({...d,profile:employmentChoice(d.profile,value)}))}else editField(key,value,'profile')}}><option value="">Select an option</option>{selectChoices(key==='highest_qualification_level'?qualificationLevels:isDropdown(key)?profileOptions?.[key]??[]:[],detail.profile[key]??'').map(option=><option key={option} value={option}>{option}</option>)}</select>:isMoneyField(key)?<MoneyInput value={detail[group][key]??''} onChange={value=>editField(key,value,group)}/>:isProfileDateField(key)?<DateInput birthDate={key==='date_of_birth'} value={detail[group][key]??''} onChange={value=>editField(key,value,group)}/>:key==='probation'?<input type="number" min={0} max={6} step={1} readOnly={detail.profile.employment_type==='Permanent'} value={detail.profile.probation??''} onChange={e=>editField(key,e.target.value,'profile')}/>:<input value={detail[group][key]??''} onChange={e=>editField(key,e.target.value,group)}/>}</label>})}{tab==='core'&&selected&&<label>Leaving Date<DateInput value={values.leaving_date??selected.leaving_date??''} onChange={value=>setValues(v=>({...v,leaving_date:value}))}/></label>}{tab==='core'&&<label>Source / Verification Note<input value={values.source_note??''} onChange={e=>setValues(v=>({...v,source_note:e.target.value}))}/></label>}<div className="savebar"><button disabled={busy||!detailsReady} type="submit">{busy?'Saving.':'Save employee'}</button><span className="muted">Blank values are retained as blank.</span></div></form>}</div></div>}
  {action&&<div className="overlay"><div className="dialog" role="dialog" aria-modal="true" aria-label={`${action.type} employee`}><h2>{action.type==='delete'?'Permanently delete record':action.type==='deactivate'?'Deactivate employee':'Reactivate employee'}</h2><p><strong>{action.row.employee_no} · {action.row.full_name}</strong></p>{action.type==='delete'&&<><p className="error">Delete only for records created in error. Employee exits should use Deactivate. Deletion cannot be undone through the app and may be blocked by linked data.</p><label>Type the exact employee ID to confirm<input value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder={action.row.employee_no}/></label></>}{action.type==='deactivate'&&<label>Leaving date (required)<DateInput required value={leavingDate} onChange={setLeavingDate}/></label>}<label>Reason (required)<textarea rows={3} value={reason} onChange={e=>setReason(e.target.value)}/></label>{error&&<p className="error" role="alert">{error}</p>}<div className="bar"><button className="secondary" onClick={close}>Cancel</button><button disabled={busy||(action.type==='deactivate'&&!isIsoDate(leavingDate))||(action.type==='delete'&&confirm!==action.row.employee_no)||reason.trim().length<(action.type==='delete'?10:5)} onClick={()=>void execute()}>{busy?'Processing.':'Confirm '+action.type}</button></div></div></div>}
  {credentials&&<div className="overlay"><div className="dialog" role="dialog" aria-modal="true" aria-label="New employee login"><h2>Login created</h2><p>{credentials.employee_no} · {credentials.full_name}</p><p>Username: <strong>{credentials.username}</strong></p><p>Initial password: <strong>{credentials.initial_password}</strong></p><p>The employee must change this password at first login. No email has been sent. Copy these details before closing.</p><div className="head-actions"><a href={'/emails?invite='+encodeURIComponent(credentials.employee_no)}>Prepare welcome email</a><button onClick={()=>setCredentials(null)}>Close</button></div></div></div>}
  </main>
