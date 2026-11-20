@@ -28,8 +28,6 @@ export default function Directory({email}:{email:string}) {
  const [detailsReady,setDetailsReady]=useState(false)
  const [profileOptions,setProfileOptions]=useState<ProfileOptions|null>(null)
  const [designations,setDesignations]=useState<string[]|null>(null)
- const [showDesignationEditor,setShowDesignationEditor]=useState(false)
- const [newDesignation,setNewDesignation]=useState(''),[designationFeedback,setDesignationFeedback]=useState(''),[designationAdded,setDesignationAdded]=useState(false),[designationBusy,setDesignationBusy]=useState(false)
  const [action,setAction]=useState<{type:'deactivate'|'reactivate'|'delete';row:Employee}|null>(null),[reason,setReason]=useState(''),[confirm,setConfirm]=useState(''),[leavingDate,setLeavingDate]=useState('')
  const [hierarchy,setHierarchy]=useState(new Map<string,Hierarchy>())
  async function refresh(){setLoading(true);const [directory,lines]=await Promise.all([browserDb().from('employees').select('id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,employment_state,leaving_date,employee_details(manager_no:profile->>line_manager_employee_no,email:profile->>email,personal_email:profile->>personal_email)').order('employee_no',{ascending:true}).limit(2000),browserDb().rpc('hr_reporting_directory').order('employee_id').limit(2000)]);const {data,error}=directory;setHierarchy(new Map(((lines.data??[]) as Hierarchy[]).map(line=>[line.employee_id,line])));setRows((data??[]) as unknown as Employee[]);setError(error?.message??lines.error?.message??'');setLoading(false)}
@@ -77,21 +75,7 @@ export default function Directory({email}:{email:string}) {
   setProfileOptions(options)
   setDesignations(options.reports_to_text)
  }
- async function addDesignation(){
-  const title=newDesignation.trim()
-  if(!title||designationBusy)return
-  setDesignationBusy(true);setDesignationFeedback('');setDesignationAdded(false)
-  try{
-   const departmentId=profileOptions?.department_options?.find(item=>item.name===values.department)?.id
-   if(!departmentId){setDesignationFeedback('Choose a department before adding a designation.');return}
-   const {error}=await browserDb().rpc('add_department_designation',{p_department_id:departmentId,p_title:title})
-   if(error){setDesignationFeedback(error.code==='23505'?'That designation is already in the list.':'Could not add this title. Check that it is a new, approved spelling.');return}
-   await loadDesignations()
-   setNewDesignation('');setDesignationAdded(true);setDesignationFeedback('Added '+title+' to the shared dropdown.')
-  }catch{setDesignationFeedback('Could not add the designation. Reopen this form to check the list.')}
-  finally{setDesignationBusy(false)}
- }
- async function edit(row:Employee|null){setShowDesignationEditor(false);setNewDesignation('');setDesignationFeedback('');void loadDesignations();setError('');setNotice('');setCheck('');setSelected(row);setDetailsReady(!row);setAdding(!row);setTab('core');setValues(Object.fromEntries(baseFields.map(([k])=>[k,row?.[k]??''])));setDetail({profile:{},payroll_sep_2026:{}});setOriginalProfile({});if(row){const {data,error}=await browserDb().from('employee_details').select('profile,payroll_sep_2026').eq('employee_id',row.id).maybeSingle();if(error){setError('Could not load extended details: '+error.message)}else{setDetailsReady(true);if(data){setOriginalProfile(data.profile??{});setDetail({profile:data.profile??{},payroll_sep_2026:data.payroll_sep_2026??{}})}}}}
+ async function edit(row:Employee|null){void loadDesignations();setError('');setNotice('');setCheck('');setSelected(row);setDetailsReady(!row);setAdding(!row);setTab('core');setValues(Object.fromEntries(baseFields.map(([k])=>[k,row?.[k]??''])));setDetail({profile:{},payroll_sep_2026:{}});setOriginalProfile({});if(row){const {data,error}=await browserDb().from('employee_details').select('profile,payroll_sep_2026').eq('employee_id',row.id).maybeSingle();if(error){setError('Could not load extended details: '+error.message)}else{setDetailsReady(true);if(data){setOriginalProfile(data.profile??{});setDetail({profile:data.profile??{},payroll_sep_2026:data.payroll_sep_2026??{}})}}}}
  function close(){setSelected(null);setAdding(false);setAction(null)}
  async function save(e:React.FormEvent){e.preventDefault();if(!detailsReady)return;setBusy(true);setError('');const db=browserDb();const payload=Object.fromEntries(baseFields.map(([k])=>[k,values[k]?.trim()||null]));let resultId=selected?.id
  if(selected){if(values.leaving_date!==undefined)payload.leaving_date=values.leaving_date||null;const r=await db.from('employees').update(payload).eq('id',selected.id);if(r.error){setBusy(false);setError(r.error.message);return}}
@@ -154,12 +138,7 @@ export default function Directory({email}:{email:string}) {
  {(selected||adding)&&<div className="overlay"><div className="dialog wide" role="dialog" aria-modal="true" aria-label={selected?'Edit employee':'Add employee'}><div className="bar"><h2>{selected?'Employee Profile':'New employee'}</h2><button className="secondary" type="button" onClick={close}>Close</button></div>{selected?<p className="mono">{selected.employee_no} · {selected.employment_state}</p>:<p className="muted">A new employee number is assigned on save.</p>}
  {profileEmailDiffers&&<p className="error" role="alert">The sign-in email on file is <strong>{signInEmail}</strong>. It differs from the work and personal emails shown in this profile. Review the account in <a href="/credentials">Credentials</a>.</p>}
  {tab==='core'&&<label><input type="checkbox" checked={detail.profile.shared_work_mailbox==='true'} disabled={busy||!detailsReady} onChange={event=>editField('shared_work_mailbox',String(event.target.checked),'profile')}/> Shared work mailbox</label>}
- <div className="bar"><button type="button" className="secondary" aria-expanded={showDesignationEditor} onClick={()=>setShowDesignationEditor(open=>!open)}>{showDesignationEditor?'Close designation editor':'Add new designation'}</button></div>
- {showDesignationEditor&&<div className="panel">
-  <label>New designation<input value={newDesignation} maxLength={120} disabled={designationBusy} onChange={event=>setNewDesignation(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();void addDesignation()}}}/></label>
-  <button type="button" disabled={designationBusy||!newDesignation.trim()} onClick={()=>void addDesignation()}>{designationBusy?'Adding.':'Add to dropdown'}</button>
-  {designationFeedback&&<p className={designationAdded?"notice":"error"} role={designationAdded?"status":"alert"}>{designationFeedback}</p>}
- </div>}
+ {tab==='core'&&<p className="muted">If a department or designation is missing, HR creates it in the <a href="/organisation" target="_blank" rel="noopener noreferrer">separate maintenance section</a> and returns to the employee form. <button type="button" className="link" onClick={()=>void loadDesignations()}>Refresh dropdowns</button></p>}
  <div className="tabs">{[{key:'core',title:'Core record'},...(selected?[{key:'family',title:'Family & Dependants'}]:[]),...sections].map(s=><button key={s.key} className={tab===s.key?'tab active-tab':'tab'} type="button" onClick={()=>setTab(s.key)}>{s.title}</button>)}</div>
  {selected&&<FamilyEditor key={selected.id} employeeId={selected.id} active={tab==='family'}/>}
  {tab!=='family'&&<form onSubmit={save}>{tab==='salary'&&<>
