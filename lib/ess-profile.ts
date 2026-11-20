@@ -1,5 +1,16 @@
 export type Values=Record<string,string|null>
+export type Hierarchy={employee_id:string; department:string|null; manager_title:string|null; manager_name:string|null; status:'root'|'position_unassigned'|'parent_unassigned'|'vacant'|'occupied'}
+export function reportingLabel(line?:Hierarchy){
+ if(!line)return 'Hierarchy unavailable'
+ if(line.status==='root')return 'Top position'
+ if(line.status==='position_unassigned')return 'Employee position unassigned'
+ return line.manager_title??'Reporting position unassigned'
+}
+export function occupantLabel(line?:Hierarchy){
+ return line?.status==='vacant'?'Vacant':line?.manager_name??''
+}
 export type EmployeeProfile={
+ hierarchy?:Hierarchy
  employee:{employee_no:string;full_name:string;designation:string|null;department:string|null;location:string|null;reports_to_text:string|null;employment_state:string;source_note?:string|null}
  contacts:Values;personal:Values;employment:Values;rewards:Values;payroll_sep_2026?:Values
  core_updated_at:string;profile_updated_at:string|null
