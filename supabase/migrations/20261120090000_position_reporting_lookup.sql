@@ -19,18 +19,18 @@ left join public.employee_records manager on manager.position_id=parent.id and m
 revoke all on hrms_private.employee_reporting_hierarchy from public, anon, authenticated;
 create function hrms_private.hr_reporting_directory()
 returns setof hrms_private.employee_reporting_hierarchy
-language plpgsql stable security definer set search_path='' as $
+language plpgsql stable security definer set search_path='' as $$
 begin
   if not coalesce(public.is_hr_admin(),false) then
     raise exception 'HR administrator access required' using errcode='42501';
   end if;
   return query select * from hrms_private.employee_reporting_hierarchy;
-end $;
+end $$;
 create function public.hr_reporting_directory()
 returns setof hrms_private.employee_reporting_hierarchy
-language sql stable security invoker set search_path='' as $
+language sql stable security invoker set search_path='' as $$
   select * from hrms_private.hr_reporting_directory()
-$;
+$$;
 revoke all on function public.hr_reporting_directory(), hrms_private.hr_reporting_directory() from public, anon, authenticated;
 grant execute on function public.hr_reporting_directory(), hrms_private.hr_reporting_directory() to authenticated;
 
