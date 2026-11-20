@@ -1,4 +1,5 @@
 'use client'
+import {reportingLabel,occupantLabel} from '../../lib/ess-profile'
 import {useEffect,useState} from 'react'
 import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
@@ -7,7 +8,7 @@ import DateInput from '../date-input'
 import DesignationSelect from '../designation-select'
 import {displayShortDate,isIsoDate,isProfileDateField} from '../../lib/date-input'
 import type {EmployeeProfile} from '../../lib/ess-profile'
-import {confirmationDate,paymentMethods,isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels,designationTitles,departmentNames} from '../../lib/profile-inputs'
+import {confirmationDate,paymentMethods,isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels,designationTitles} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 
 const dateError='Enter a valid date in DD/MM/YY or DD/MM/YYYY.'
@@ -51,7 +52,6 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
  useEffect(()=>{void loadOptions()},[])
  const patch=profilePatch(base,draft),dirty=Object.keys(patch).length>0
  const calculatedConfirmationDate=confirmationDate(draft.date_of_joining,draft.probation)
- const reportingTitles=options?.line_managers?options.reports_to_text:[]
  const managers=(options?.line_managers??[]).filter(manager=>manager.designation===draft.reports_to_text)
  const selectedManager=managers.some(manager=>manager.employee_no===draft.line_manager_employee_no)
  useEffect(()=>{if(!dirty){setBase(initialProfile);setDraft(profileDraft(initialProfile))}},[initialProfile,dirty])
@@ -127,35 +127,22 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   }}>
    {editableProfileSections.map(section=><div key={section.title}><h3>{section.title}</h3><div className="family-fields">{section.fields.map(([key,label])=><label key={key} data-profile-field={key} data-profile-error={fieldErrors[key]?true:undefined} className={key==="permanent_address"?"field-label-exact":undefined}>
     {key==='probation'?'Probation (months)':key==='salary_transfer_method'?'Method of Payment':label}
-    {'readOnly' in section?<input readOnly value={draft[key]}/>:key==='offer_date'?<>
+    {key==='department'?<input readOnly value={base.hierarchy?.department??''}/>:['reports_to_text','line_manager_employee_no'].includes(key)?<input readOnly value={key==='reports_to_text'?reportingLabel(base.hierarchy):occupantLabel(base.hierarchy)}/>: 'readOnly' in section?<input readOnly value={draft[key]}/>:key==='offer_date'?<>
      <input readOnly value={displayShortDate(calculatedConfirmationDate)} placeholder="Calculated from joining date and probation"/>
      {!calculatedConfirmationDate&&<span className="field-hint">Enter Date of Joining and Probation (months) to calculate this date.</span>}
     </>:key==='salary_transfer_method'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
      <option value="">Select a payment method</option>
      {draft[key]&&!paymentMethods.includes(draft[key])&&<option value={draft[key]} disabled>{draft[key]} (previously recorded)</option>}
      {paymentMethods.map(method=><option key={method} value={method}>{method}</option>)}
-    </select>:key==='reports_to_text'?<>
-     <select value={reportingTitles.includes(draft[key])?draft[key]:''} disabled={busy||!options?.line_managers} onChange={event=>{
-      const designation=event.target.value
-      const choices=options?.line_managers?.filter(manager=>manager.designation===designation)??[]
-      setDraft(old=>({...old,reports_to_text:designation,line_manager_employee_no:choices.length===1?choices[0].employee_no:''}))
-     }}>
-      <option value="">Select a designation</option>
-      {reportingTitles.map(title=><option key={title} value={title}>{title}</option>)}
-     </select>
-     {options?.line_managers&&draft[key]&&!reportingTitles.includes(draft[key])&&<span className="field-hint">Previously recorded: {draft[key]}</span>}
-    </>:key==='line_manager_employee_no'?<select value={selectedManager?draft[key]:''} disabled={busy||!managers.length} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
-     <option value="">{managers.length?'Select a line manager':'Select a designation first'}</option>
-     {managers.map(manager=><option key={manager.employee_no} value={manager.employee_no}>{manager.name}{manager.location?' · '+manager.location:''}{managers.some(other=>other.employee_no!==manager.employee_no&&other.name===manager.name&&other.location===manager.location)?' · '+manager.employee_no:''}</option>)}
     </select>:key==='designation'?<DesignationSelect titles={options?designationTitles(options,draft.department??''):null} value={draft[key]} disabled={busy} onChange={value=>setDraft(old=>({...old,[key]:value}))}/>:key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
      <option value="">Select a qualification level</option>
      {selectChoices(qualificationLevels,draft[key]).map(level=><option key={level} value={level}>{level}</option>)}
-    </select>:key==='gender'?<select value={draft[key]||'Male'} disabled={busy} onChange={event=>setDraft(old=>({...old,gender:event.target.value}))}><option>Male</option><option>Female</option></select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value,...(key==='department'&&!designationTitles(options,event.target.value).includes(old.designation)?{designation:''}:{})}))}>
+    </select>:key==='gender'?<select value={draft[key]||'Male'} disabled={busy} onChange={event=>setDraft(old=>({...old,gender:event.target.value}))}><option>Male</option><option>Female</option></select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value}))}>
      <option value="">{options?'Select an option':'Loading options...'}</option>
-     {selectChoices(key==='department'?departmentNames(options):options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{option}</option>)}
+     {selectChoices(options?.[key]??[],draft[key]).map(option=><option key={option} value={option}>{option}</option>)}
     </select>:key==='probation'?<>
      <input type="number" min={0} max={6} step={1} inputMode="numeric" value={validProbation(draft.probation)?draft.probation:''} readOnly={draft.employment_type==='Permanent'} disabled={busy} placeholder="0 to 6" aria-describedby="probation-help" onChange={event=>setDraft(old=>({...old,probation:event.target.value}))}/>
-     <span id="probation-help" className="field-hint">{draft.employment_type==='Permanent'?'Permanent: 3 months.':!validProbation(draft.probation)?'Current recorded text: '+draft.probation+'. Enter 0–6 months to replace it.':'Enter a whole number from 0 to 6 months.'}</span>
+     <span id="probation-help" className="field-hint">{draft.employment_type==='Permanent'?'Permanent: 3 months.':!validProbation(draft.probation)?'Current recorded text: '+draft.probation+'. Enter 0-6 months to replace it.':'Enter a whole number from 0 to 6 months.'}</span>
     </>:isProfileDateField(key)?<DateInput birthDate={key==='date_of_birth'} value={draft[key]} disabled={busy} onChange={value=>setDraft(old=>({...old,[key]:value}))}/>:<input type={key==='email'?'email':'text'} required={key==='full_name'} maxLength={key==='email'?254:1000} value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}/>}
     {fieldErrors[key]&&<span className="field-hint" style={{color:'#a12626'}} role="alert">{fieldErrors[key]}</span>}
    </label>)}</div></div>)}
