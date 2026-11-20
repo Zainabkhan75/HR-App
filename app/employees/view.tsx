@@ -16,7 +16,7 @@ import {reportingLabel,occupantLabel,type Hierarchy} from '../../lib/ess-profile
 type PositionOption={id:number;position_code:string|null;department_id:number;designation_id:number;title:string;location:string|null;reports_to_position_id:number|null}
 type Employee={position_id:number|null;employee_details?:{manager_no:string|null;email:string|null;personal_email:string|null}|null;id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;leaving_date:string|null;employment_state:'active'|'inactive'}
 type Detail={payroll_sep_2026:Record<string,string>;profile:Record<string,string>}
-const baseFields:[Exclude<keyof Employee,'employee_details'>,string][]=[['full_name','Full name'],['department','Department'],['designation','Designation'],['reports_to_text','Reports To'],['location','Location'],['source_note','Source / verification note']]
+const editableFields=['full_name','location','source_note'] as const
 type Credentials={employee_no:string;full_name:string;username:string;initial_password:string}
 export default function Directory({email}:{email:string}) {
  const metricDialog=useRef<HTMLDialogElement>(null)
@@ -93,7 +93,7 @@ export default function Directory({email}:{email:string}) {
  setPositionId(row?.position_id==null?'':String(row.position_id))
  setDepartmentFilter('')
  setDesignationFilter('')
- void loadDesignations();setError('');setNotice('');setCheck('');setSelected(row);setDetailsReady(!row);setAdding(!row);setTab('core');setValues(Object.fromEntries(baseFields.map(([k])=>[k,row?.[k]??''])));setDetail({profile:{},payroll_sep_2026:{}});setOriginalProfile({});if(row){const {data,error}=await browserDb().from('employee_details').select('profile,payroll_sep_2026').eq('employee_id',row.id).maybeSingle();if(error){setError('Could not load extended details: '+error.message)}else{setDetailsReady(true);if(data){setOriginalProfile(data.profile??{});setDetail({profile:data.profile??{},payroll_sep_2026:data.payroll_sep_2026??{}})}}}}
+ void loadDesignations();setError('');setNotice('');setCheck('');setSelected(row);setDetailsReady(!row);setAdding(!row);setTab('core');setValues(Object.fromEntries(editableFields.map(key=>[key,row?.[key]??''])));setDetail({profile:{},payroll_sep_2026:{}});setOriginalProfile({});if(row){const {data,error}=await browserDb().from('employee_details').select('profile,payroll_sep_2026').eq('employee_id',row.id).maybeSingle();if(error){setError('Could not load extended details: '+error.message)}else{setDetailsReady(true);if(data){setOriginalProfile(data.profile??{});setDetail({profile:data.profile??{},payroll_sep_2026:data.payroll_sep_2026??{}})}}}}
  function close(){setSelected(null);setAdding(false);setAction(null)}
  async function save(e:React.FormEvent){e.preventDefault();if(!detailsReady||busy)return;setBusy(true);setError('');const db=browserDb();const payload:Record<string,string|number|null>={
   full_name:values.full_name?.trim()||null,
