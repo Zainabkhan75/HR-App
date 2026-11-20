@@ -171,7 +171,7 @@ export default function Directory({email}:{email:string}) {
  {profileEmailDiffers&&<p className="error" role="alert">The sign-in email on file is <strong>{signInEmail}</strong>. It differs from the work and personal emails shown in this profile. Review the account in <a href="/credentials">Credentials</a>.</p>}
  {tab==='core'&&<label><input type="checkbox" checked={detail.profile.shared_work_mailbox==='true'} disabled={busy||!detailsReady} onChange={event=>editField('shared_work_mailbox',String(event.target.checked),'profile')}/> Shared work mailbox</label>}
  {tab==='core'&&<p className="muted">If a department or designation is missing, HR creates it in the <a href="/organisation" target="_blank" rel="noopener noreferrer">separate maintenance section</a> and returns to the employee form. <button type="button" className="link" onClick={()=>void loadDesignations()}>Refresh dropdowns</button></p>}
- <div className="tabs">{[{key:'core',title:'Core record'},...(selected?[{key:'family',title:'Family & Dependants'}]:[]),...sections].map(s=><button key={s.key} className={tab===s.key?'tab active-tab':'tab'} type="button" onClick={()=>setTab(s.key)}>{s.title}</button>)}</div>
+ <div className="tabs">{[{key:'core',title:'Core Profile'},...(selected?[{key:'family',title:'Family & Dependants'}]:[]),...sections.filter(section=>section.key!=='employment')].map(s=><button key={s.key} className={tab===s.key?'tab active-tab':'tab'} type="button" onClick={()=>setTab(s.key)}>{s.title}</button>)}</div>
  {selected&&<FamilyEditor key={selected.id} employeeId={selected.id} active={tab==='family'}/>}
  {tab!=='family'&&<form onSubmit={save}>{tab==='salary'&&<>
  <h3>Salary Slip · {payrollPeriodLabel}</h3>
@@ -205,11 +205,11 @@ export default function Directory({email}:{email:string}) {
    {selectChoices(profileOptions?.location??[],values.location??'').map(option=><option key={option} value={option}>{option}</option>)}
   </select></label>
   <label>Source / verification note<input value={values.source_note??''} onChange={e=>setValues(v=>({...v,source_note:e.target.value}))}/></label>
- </>:(tab==='employment'
+ </>:null}{tab==='core'&&<h3>Employment &amp; Organisation</h3>}{(tab==='core'
  ? employmentFields.map(([key,label])=>({key,label:key==='work_location_mobility'?'Work Location':label}))
  : sections.filter(s=>s.key===tab).flatMap(s=>s.key==='background'?[...s.labels,'Highest Qualification Level']:[...s.labels]).map(label=>({key:fieldKey(label),label}))
  ).map(({key,label})=>{const group=tab==='current-payroll'?'payroll_sep_2026':'profile';if(group==='payroll_sep_2026'&&payrollProfileFields.has(label)){
- const value=label==='Employee ID#'?selected?.employee_no:label==='Full Name'?values.full_name:label==='Designation'?values.designation:detail.profile.date_of_joining
+ const value=label==='Employee ID#'?selected?.employee_no:label==='Full Name'?values.full_name:label==='Designation'?(chosenPosition?.title??selected?.designation):detail.profile.date_of_joining
  return <label key={key}>{label}<input readOnly value={isProfileDateField(key)?displayShortDate(value):value??''}/></label>
  }return <label key={key} className={key==="permanent_address"?"field-label-exact":undefined}>{key==='probation'?'Probation (Months)':key==='salary_transfer_method'?'Method of Payment':label}{key==='offer_date'?<>
   <input readOnly value={displayShortDate(calculatedConfirmationDate)} placeholder="Calculated from joining date and probation"/>
