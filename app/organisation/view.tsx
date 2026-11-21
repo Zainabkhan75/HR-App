@@ -17,7 +17,6 @@ export default function Organisation(){
  const [departments,setDepartments]=useState<Department[]>([])
  const [designations,setDesignations]=useState<Designation[]>([])
  const [assignments,setAssignments]=useState<Assignment[]>([])
- const [selected,setSelected]=useState('')
  const [editing,setEditing]=useState<{kind:'department'|'designation';id:number;previous:string}|null>(null)
  const [draft,setDraft]=useState('')
  const [newDepartment,setNewDepartment]=useState('')
@@ -64,8 +63,8 @@ export default function Organisation(){
     if(result.error)throw Error('Could not add this department. Check whether the name already exists.')
     setNewDepartment('')
    }else{
-    if(!selected||!newTitle.trim())throw Error('Select a department and enter a designation.')
-    const result=await db.rpc('add_department_designation',{p_department_id:Number(selected),p_title:newTitle.trim()})
+    if(!newTitle.trim())throw Error('Enter a designation.')
+    const result=await db.rpc('add_global_designation',{p_title:newTitle.trim()})
     if(result.error)throw Error('Could not add this designation. Refresh and try again.')
     setNewTitle('')
    }
@@ -90,7 +89,6 @@ export default function Organisation(){
   }catch(failure){setError(failure instanceof Error?failure.message:'Could not add the position.')}
   finally{setBusy(false)}
  }
- const names=new Map(departments.map(item=>[item.id,item.name]))
  const counts=new Map<number,number>()
  for(const assignment of assignments){
   if(assignment.designation_id!==null)counts.set(assignment.designation_id,(counts.get(assignment.designation_id)??0)+1)
@@ -133,13 +131,11 @@ export default function Organisation(){
      <td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'department',id:department.id,previous:department.name});setDraft(department.name)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
   <section className="panel"><h2>Designations</h2><div className="bar">
-   <label>Department<select value={selected} disabled={busy} onChange={event=>setSelected(event.target.value)}><option value="">All Departments</option>
-    {departments.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
    <label>New Designation<input value={newTitle} disabled={busy} onChange={event=>setNewTitle(event.target.value)}/></label>
-   <button disabled={busy||!selected||!newTitle.trim()} onClick={()=>void add('designation')}>Add Designation</button></div>
-   <div className="tablewrap"><table><thead><tr><th>Designation ID</th><th>Designation</th><th>Department</th><th>Active Employees</th><th>Actions</th></tr></thead>
-    <tbody>{designations.filter(role=>!selected||role.department_id===Number(selected)).map(role=><tr key={role.id}><td>{role.id}</td><td>{role.title}</td>
-     <td>{role.department_id?names.get(role.department_id):''}</td><td>{counts.get(role.id)??0}</td><td><button className="link" disabled={busy}
+   <button disabled={busy||!newTitle.trim()} onClick={()=>void add('designation')}>Add Designation</button></div>
+   <div className="tablewrap"><table><thead><tr><th>Designation ID</th><th>Designation</th><th>Active Employees</th><th>Actions</th></tr></thead>
+    <tbody>{designations.map(role=><tr key={role.id}><td>{role.id}</td><td>{role.title}</td>
+     <td>{counts.get(role.id)??0}</td><td><button className="link" disabled={busy}
       onClick={()=>{setEditing({kind:'designation',id:role.id,previous:role.title});setDraft(role.title)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
   {editing&&<div className="overlay"><section className="dialog" role="dialog" aria-modal="true" aria-label="Rename shared record">
