@@ -247,6 +247,7 @@ export default function Directory({email}:{email:string}) {
     {!positionOptions.length&&<p role="status" style={{margin:10}}>No matching positions in this department.</p>}
    </div>}
   </div>
+  <label>Designation ID<input readOnly value={chosenPosition?.designation_id!=null?String(chosenPosition.designation_id):selected?.designation_id!=null?String(selected.designation_id):''}/></label>
   <label>Reports To<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?reportingDesignation(selected):parentPosition?.title??(chosenPosition?'Reporting position unassigned':'')}/></label>
   <label>Line Manager Name<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?occupantLabel(hierarchy.get(selected.id)):parentOccupant?.full_name??(parentPosition?'Vacant':'')}/></label>
   <label>Location<select value={values.location??''} disabled={busy||!profileOptions} onChange={e=>setValues(v=>({...v,location:e.target.value}))}>
