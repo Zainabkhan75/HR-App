@@ -3,7 +3,8 @@
 import {useEffect,useState} from 'react'
 import {browserDb} from '../../lib/supabase'
 
-type Department={id:number;name:string}
+type SubDepartment={id:number;name:string;parent_department_id:string|null}
+type OrganisationDepartment={id:string;name:string}
 type Designation={id:number;title:string}
 type Position={id:number;position_code:string|null;title:string;location:string|null;department_id:number|null;designation_id:number|null;reports_to_position_id:number|null}
 type Assignment={position_id:number|null}
@@ -19,12 +20,16 @@ export default function Organisation(){
  const [editPositionDepartment,setEditPositionDepartment]=useState('')
  const [editPositionDesignation,setEditPositionDesignation]=useState('')
  const [editParentPosition,setEditParentPosition]=useState('')
- const [departments,setDepartments]=useState<Department[]>([])
+ const [subDepartments,setSubDepartments]=useState<SubDepartment[]>([])
+ const [organisationDepartments,setOrganisationDepartments]=useState<OrganisationDepartment[]>([])
  const [designations,setDesignations]=useState<Designation[]>([])
  const [assignments,setAssignments]=useState<Assignment[]>([])
- const [editing,setEditing]=useState<{kind:'department'|'designation';id:number;previous:string}|null>(null)
+ const [editing,setEditing]=useState<{kind:'sub'|'org'|'designation';id:number|string;previous:string}|null>(null)
  const [draft,setDraft]=useState('')
- const [newDepartment,setNewDepartment]=useState('')
+ const [newSubDepartment,setNewSubDepartment]=useState('')
+ const [newSubParent,setNewSubParent]=useState('')
+ const [newOrgId,setNewOrgId]=useState('')
+ const [newOrgName,setNewOrgName]=useState('')
  const [newTitle,setNewTitle]=useState('')
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState('')
@@ -48,25 +53,29 @@ export default function Organisation(){
   if(!editing||!draft.trim()||busy)return
   setBusy(true);setError('');setNotice('')
   try{
-   const column=editing.kind==='department'?'name':'title'
-   const table=editing.kind==='department'?'departments':'designations'
-   const {error:saveError}=await browserDb().from(table).update({[column]:draft.trim()})
-    .eq('id',editing.id).eq(column,editing.previous).select('id').single()
+   const table=editing.kind==='org'?'organisation_departments':editing.kind==='sub'?'departments':'designations'
+   const column=editing.kind==='designation'?'title':'name'
+   const {error:saveError}=await browserDb().from(table).update({[column]:draft.trim()}).eq('id',editing.id).eq(column,editing.previous).select('id').single()
    if(saveError)throw Error('Could not save. Check for a duplicate name or refresh if someone else edited this record.')
-   setEditing(null);await load();setNotice('Saved. Assigned employees now use the updated name.')
+   setEditing(null);await load();setNotice('Saved. The updated organisation name is now used across the app.')
   }catch(failure){setError(failure instanceof Error?failure.message:'Could not save.')}
   finally{setBusy(false)}
  }
- async function add(kind:'department'|'designation'){
+ async function add(kind:'sub'|'org'|'designation'){
   if(busy)return
   setBusy(true);setError('');setNotice('')
   try{
    const db=browserDb()
-   if(kind==='department'){
-    if(!newDepartment.trim())throw Error('Enter a sub-department name.')
-    const result=await db.from('departments').insert({name:newDepartment.trim()})
-    if(result.error)throw Error('Could not add this sub-department. Check whether the name already exists.')
-    setNewDepartment('')
+   if(kind==='org'){
+    if(!newOrgId.trim()||!newOrgName.trim())throw Error('Enter a Department ID and Department name.')
+    const result=await db.from('organisation_departments').insert({id:newOrgId.trim(),name:newOrgName.trim()})
+    if(result.error)throw Error('Could not add this Department. Check that the ID and name are unique.')
+    setNewOrgId('');setNewOrgName('')
+   }else if(kind==='sub'){
+    if(!newSubDepartment.trim()||!newSubParent)throw Error('Enter a Sub-department name and choose its Department.')
+    const result=await db.from('departments').insert({name:newSubDepartment.trim(),parent_department_id:newSubParent})
+    if(result.error)throw Error('Could not add this Sub-department. Check that the name is unique.')
+    setNewSubDepartment('');setNewSubParent('')
    }else{
     if(!newTitle.trim())throw Error('Enter a designation.')
     const result=await db.rpc('add_global_designation',{p_title:newTitle.trim()})
@@ -118,71 +127,41 @@ export default function Organisation(){
   if(designationId!=null)counts.set(designationId,(counts.get(designationId)??0)+1)
  }
  return <main className="shell">
-  <header><div><div className="eyebrow">BANDANA / HR ADMINISTRATION</div><h1>Positions, Sub-departments &amp; Designations</h1></div>
+  <header><div><div className="eyebrow">BANDANA / HR ADMINISTRATION</div><h1>Positions, Departments, Sub-departments &amp; Designations</h1></div>
    <nav className="head-actions"><a href="/employees">Employee Directory</a><a href="/reports">Reports</a></nav></header>
   {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
   <section className="panel"><h2>Add New Position</h2>
    <form className="bar" onSubmit={event=>{event.preventDefault();void addPosition()}}>
-    <label>Sub-department<select required value={positionDepartment} disabled={busy}
-     onChange={event=>setPositionDepartment(event.target.value)}>
-     <option value="">Select sub-department</option>
-     {departments.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}
-    </select></label>
-    <label>Designation<select required value={positionDesignation} disabled={busy} onChange={event=>{
-     const designation=designations.find(item=>String(item.id)===event.target.value)
-     setPositionDesignation(event.target.value)
-     if(designation&&!positionTitle.trim())setPositionTitle(designation.title)
-    }}>
-     <option value="">Select designation</option>
-     {designations.map(role=><option key={role.id} value={role.id}>{role.title}</option>)}
-    </select></label>
+    <label>Sub-department<select required value={positionDepartment} disabled={busy} onChange={event=>setPositionDepartment(event.target.value)}>
+     <option value="">Select sub-department</option>{subDepartments.map(sub=><option key={sub.id} value={sub.id}>{sub.name} · {organisationDepartments.find(org=>org.id===sub.parent_department_id)?.name??'No Department'}</option>)}</select></label>
+    <label>Designation<select required value={positionDesignation} disabled={busy} onChange={event=>{const designation=designations.find(item=>String(item.id)===event.target.value);setPositionDesignation(event.target.value);if(designation&&!positionTitle.trim())setPositionTitle(designation.title)}}>
+     <option value="">Select designation</option>{designations.map(role=><option key={role.id} value={role.id}>{role.title}</option>)}</select></label>
     <label>Position Title<input required value={positionTitle} disabled={busy} onChange={event=>setPositionTitle(event.target.value)}/></label>
-    <label>Reports To<select required value={parentPosition} disabled={busy} onChange={event=>setParentPosition(event.target.value)}>
-     <option value="">Select reporting position</option>
-     {positions.map(position=><option key={position.id} value={position.id}>
-      {[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}
-     </option>)}
-    </select></label>
+    <label>Reports To<select required value={parentPosition} disabled={busy} onChange={event=>setParentPosition(event.target.value)}><option value="">Select reporting position</option>{positions.map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}</option>)}</select></label>
     <button disabled={busy||!positionTitle.trim()||!positionDepartment||!positionDesignation||!parentPosition}>Add Position</button>
-   </form>
+   </form><p className="muted">Selecting a Sub-department automatically assigns its mapped Department.</p>
   </section>
   <section className="panel"><h2>Edit Existing Position</h2>
    <form className="bar" onSubmit={event=>{event.preventDefault();void savePositionEdit()}}>
-    <label>Position<select required value={editPositionId} disabled={busy} onChange={event=>{
-     const value=event.target.value;setEditPositionId(value)
-     const position=positions.find(item=>String(item.id)===value)
-     if(position){setEditPositionTitle(position.title);setEditPositionDepartment(position.department_id==null?'':String(position.department_id));setEditPositionDesignation(position.designation_id==null?'':String(position.designation_id));setEditParentPosition(position.reports_to_position_id==null?'':String(position.reports_to_position_id))}
-    }}><option value="">Select position</option>{positions.map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title].filter(Boolean).join(' · ')}</option>)}</select></label>
-    <label>Sub-department<select required value={editPositionDepartment} disabled={busy} onChange={event=>setEditPositionDepartment(event.target.value)}><option value="">Select sub-department</option>{departments.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
+    <label>Position<select required value={editPositionId} disabled={busy} onChange={event=>{const value=event.target.value;setEditPositionId(value);const position=positions.find(item=>String(item.id)===value);if(position){setEditPositionTitle(position.title);setEditPositionDepartment(position.department_id==null?'':String(position.department_id));setEditPositionDesignation(position.designation_id==null?'':String(position.designation_id));setEditParentPosition(position.reports_to_position_id==null?'':String(position.reports_to_position_id))}}}><option value="">Select position</option>{positions.map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title].filter(Boolean).join(' · ')}</option>)}</select></label>
+    <label>Sub-department<select required value={editPositionDepartment} disabled={busy} onChange={event=>setEditPositionDepartment(event.target.value)}><option value="">Select sub-department</option>{subDepartments.map(sub=><option key={sub.id} value={sub.id}>{sub.name} · {organisationDepartments.find(org=>org.id===sub.parent_department_id)?.name??'No Department'}</option>)}</select></label>
     <label>Designation<select required value={editPositionDesignation} disabled={busy} onChange={event=>setEditPositionDesignation(event.target.value)}><option value="">Select designation</option>{designations.map(role=><option key={role.id} value={role.id}>{role.id} · {role.title}</option>)}</select></label>
     <label>Position Title<input required value={editPositionTitle} disabled={busy} onChange={event=>setEditPositionTitle(event.target.value)}/></label>
     <label>Reports To<select value={editParentPosition} disabled={busy} onChange={event=>setEditParentPosition(event.target.value)}><option value="">No parent position</option>{positions.filter(position=>String(position.id)!==editPositionId).map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}</option>)}</select></label>
     <button disabled={busy||!editPositionId||!editPositionTitle.trim()||!editPositionDepartment||!editPositionDesignation}>Save Position</button>
-   </form>
-   <p className="muted">Changing a Position updates the Sub-department, Designation and reporting line inherited by every employee assigned to it. The Position ID remains unchanged.</p>
+   </form><p className="muted">Changing a Position updates its Sub-department, mapped Department, Designation and reporting line for every employee assigned to that Position. The Position ID remains unchanged.</p>
+  </section>
+  <section className="panel"><h2>Departments</h2>
+   <div className="bar"><label>New Department ID<input placeholder="DPT 109" value={newOrgId} disabled={busy} onChange={event=>setNewOrgId(event.target.value)}/></label><label>New Department<input value={newOrgName} disabled={busy} onChange={event=>setNewOrgName(event.target.value)}/></label><button disabled={busy||!newOrgId.trim()||!newOrgName.trim()} onClick={()=>void add('org')}>Add Department</button></div>
+   <div className="tablewrap"><table><thead><tr><th>Department ID</th><th>Department</th><th>Sub-departments</th><th>Actions</th></tr></thead><tbody>{organisationDepartments.map(org=><tr key={org.id}><td>{org.id}</td><td>{org.name}</td><td>{subDepartments.filter(sub=>sub.parent_department_id===org.id).length}</td><td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'org',id:org.id,previous:org.name});setDraft(org.name)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
   <section className="panel"><h2>Sub-departments</h2>
-   <div className="bar"><label>New Sub-department<input value={newDepartment} disabled={busy} onChange={event=>setNewDepartment(event.target.value)}/></label>
-    <button disabled={busy||!newDepartment.trim()} onClick={()=>void add('department')}>Add Sub-department</button></div>
-   <div className="tablewrap"><table><thead><tr><th>Sub-department ID</th><th>Sub-department</th><th>Positions</th><th>Actions</th></tr></thead>
-    <tbody>{departments.map(department=><tr key={department.id}><td>{department.id}</td><td>{department.name}</td>
-     <td>{positions.filter(position=>position.department_id===department.id).length}</td>
-     <td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'department',id:department.id,previous:department.name});setDraft(department.name)}}>Rename</button></td></tr>)}</tbody></table></div>
+   <div className="bar"><label>New Sub-department<input value={newSubDepartment} disabled={busy} onChange={event=>setNewSubDepartment(event.target.value)}/></label><label>Department<select required value={newSubParent} disabled={busy} onChange={event=>setNewSubParent(event.target.value)}><option value="">Select Department</option>{organisationDepartments.map(org=><option key={org.id} value={org.id}>{org.id} · {org.name}</option>)}</select></label><button disabled={busy||!newSubDepartment.trim()||!newSubParent} onClick={()=>void add('sub')}>Add Sub-department</button></div>
+   <div className="tablewrap"><table><thead><tr><th>Sub-department ID</th><th>Sub-department</th><th>Department</th><th>Positions</th><th>Actions</th></tr></thead><tbody>{subDepartments.map(sub=><tr key={sub.id}><td>{sub.id}</td><td>{sub.name}</td><td>{sub.parent_department_id??'Not assigned'}</td><td>{positions.filter(position=>position.department_id===sub.id).length}</td><td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'sub',id:sub.id,previous:sub.name});setDraft(sub.name)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
-  <section className="panel"><h2>Designations</h2><div className="bar">
-   <label>New Designation<input value={newTitle} disabled={busy} onChange={event=>setNewTitle(event.target.value)}/></label>
-   <button disabled={busy||!newTitle.trim()} onClick={()=>void add('designation')}>Add Designation</button></div>
-   <div className="tablewrap"><table><thead><tr><th>Designation ID</th><th>Designation</th><th>Active Employees</th><th>Actions</th></tr></thead>
-    <tbody>{designations.map(role=><tr key={role.id}><td>{role.id}</td><td>{role.title}</td>
-     <td>{counts.get(role.id)??0}</td><td><button className="link" disabled={busy}
-      onClick={()=>{setEditing({kind:'designation',id:role.id,previous:role.title});setDraft(role.title)}}>Rename</button></td></tr>)}</tbody></table></div>
+  <section className="panel"><h2>Designations</h2><div className="bar"><label>New Designation<input value={newTitle} disabled={busy} onChange={event=>setNewTitle(event.target.value)}/></label><button disabled={busy||!newTitle.trim()} onClick={()=>void add('designation')}>Add Designation</button></div>
+   <div className="tablewrap"><table><thead><tr><th>Designation ID</th><th>Designation</th><th>Active Employees</th><th>Actions</th></tr></thead><tbody>{designations.map(role=><tr key={role.id}><td>{role.id}</td><td>{role.title}</td><td>{counts.get(role.id)??0}</td><td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'designation',id:role.id,previous:role.title});setDraft(role.title)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
-  {editing&&<div className="overlay"><section className="dialog" role="dialog" aria-modal="true" aria-label="Rename shared record">
-   <h2>Rename {editing.kind==='department'?'Sub-department':'Designation'}</h2>
-   <p>Save to update this name in the organisation register.</p>
-   <label>Name<input autoFocus value={draft} disabled={busy} onChange={event=>setDraft(event.target.value)}/></label>
-   <div className="bar"><button disabled={busy||!draft.trim()} onClick={()=>void saveChange()}>{busy?'Saving…':'Save Name'}</button>
-    <button className="secondary" disabled={busy} onClick={()=>setEditing(null)}>Cancel</button></div>
-  </section></div>}
+  {editing&&<div className="overlay"><section className="dialog" role="dialog" aria-modal="true" aria-label="Rename shared record"><h2>Rename {editing.kind==='org'?'Department':editing.kind==='sub'?'Sub-department':'Designation'}</h2><p>Save to update this name in the organisation register.</p><label>Name<input autoFocus value={draft} disabled={busy} onChange={event=>setDraft(event.target.value)}/></label><div className="bar"><button disabled={busy||!draft.trim()} onClick={()=>void saveChange()}>{busy?'Saving…':'Save Name'}</button><button className="secondary" disabled={busy} onClick={()=>setEditing(null)}>Cancel</button></div></section></div>}
  </main>
 }
