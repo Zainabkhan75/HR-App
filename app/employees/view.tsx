@@ -14,6 +14,7 @@ import {emailRecipients} from '../../lib/employee-emails'
 import {sections,fieldKey,payrollFields,payrollProfileFields,payrollPeriodLabel} from './field-config'
 import {reportingLabel,occupantLabel,type Hierarchy} from '../../lib/ess-profile'
 type PositionOption={id:number;position_code:string|null;department_id:number;designation_id:number;title:string;location:string|null;reports_to_position_id:number|null}
+type DesignationOption={id:number;title:string}
 type Employee={position_id:number|null;department_id:number|null;designation_id:number|null;employee_details?:{manager_no:string|null;email:string|null;personal_email:string|null}|null;id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;leaving_date:string|null;employment_state:'active'|'inactive'}
 type Detail={payroll_sep_2026:Record<string,string>;profile:Record<string,string>}
 const editableFields=['full_name','location','source_note'] as const
@@ -27,6 +28,7 @@ export default function Directory({email}:{email:string}) {
  const [originalProfile,setOriginalProfile]=useState<Detail['profile']>({})
  const [detailsReady,setDetailsReady]=useState(false)
  const [profileOptions,setProfileOptions]=useState<ProfileOptions|null>(null)
+ const [designationOptions,setDesignationOptions]=useState<DesignationOption[]>([])
  const [positions,setPositions]=useState<PositionOption[]>([])
  const [positionId,setPositionId]=useState('')
  const [positionSearch,setPositionSearch]=useState('')
@@ -73,12 +75,14 @@ export default function Directory({email}:{email:string}) {
  async function loadDesignations(){
   setPositionListReady(false)
   const db=browserDb()
-  const [options,seats]=await Promise.all([
+  const [options,seats,roles]=await Promise.all([
    db.rpc('my_profile_options'),
    db.from('positions').select('id,position_code,department_id,designation_id,title,location,reports_to_position_id').order('title').order('id'),
+   db.from('designations').select('id,title').order('id'),
   ])
-  if(options.error||!options.data||seats.error){setError('Could not load the profile dropdown lists.');return}
+  if(options.error||!options.data||seats.error||roles.error){setError('Could not load the profile dropdown lists.');return}
   setProfileOptions(options.data as ProfileOptions)
+  setDesignationOptions((roles.data??[]) as DesignationOption[])
   setPositions((seats.data??[]) as PositionOption[])
   setPositionListReady(true)
  }
@@ -247,7 +251,7 @@ export default function Directory({email}:{email:string}) {
     {!positionOptions.length&&<p role="status" style={{margin:10}}>No matching positions in this department.</p>}
    </div>}
   </div>
-  <label>Designation ID<input readOnly value={chosenPosition?.designation_id!=null?String(chosenPosition.designation_id):selected?.designation_id!=null?String(selected.designation_id):''}/></label>
+  <label>Designations<input readOnly value={chosenPosition?.designation_id!=null?String(chosenPosition.designation_id)+' · '+(designationOptions.find(item=>item.id===chosenPosition.designation_id)?.title??''):''}/></label>
   <label>Reports To<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?reportingDesignation(selected):parentPosition?.title??(chosenPosition?'Reporting position unassigned':'')}/></label>
   <label>Line Manager Name<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?occupantLabel(hierarchy.get(selected.id)):parentOccupant?.full_name??(parentPosition?'Vacant':'')}/></label>
   <label>Location<select value={values.location??''} disabled={busy||!profileOptions} onChange={e=>setValues(v=>({...v,location:e.target.value}))}>
