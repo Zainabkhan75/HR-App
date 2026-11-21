@@ -4,9 +4,9 @@ import {useEffect,useState} from 'react'
 import {browserDb} from '../../lib/supabase'
 
 type Department={id:number;name:string}
-type Designation={id:number;department_id?:number|null;title:string}
-type Position={id:number;position_code:string|null;title:string;location:string|null;department_id:number|null}
-type Assignment={designation_id:number|null}
+type Designation={id:number;title:string}
+type Position={id:number;position_code:string|null;title:string;location:string|null;department_id:number|null;designation_id:number|null}
+type Assignment={position_id:number|null}
 
 export default function Organisation(){
  const [positions,setPositions]=useState<Position[]>([])
@@ -30,8 +30,8 @@ export default function Organisation(){
   const [depts,roles,people,seats]=await Promise.all([
    db.from('departments').select('id,name').order('name'),
    db.from('designations').select('id,title').order('title'),
-   db.from('employees').select('designation_id').eq('employment_state','active').limit(2000),
-   db.from('positions').select('id,position_code,title,location,department_id').order('title').order('id'),
+   db.from('employees').select('position_id').eq('employment_state','active').limit(2000),
+   db.from('positions').select('id,position_code,title,location,department_id,designation_id').order('title').order('id'),
   ])
   if(depts.error||roles.error||people.error||seats.error)throw Error('Could not load organisation records.')
   setPositions(seats.data)
