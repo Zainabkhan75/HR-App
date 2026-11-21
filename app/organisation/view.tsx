@@ -63,9 +63,9 @@ export default function Organisation(){
   try{
    const db=browserDb()
    if(kind==='department'){
-    if(!newDepartment.trim())throw Error('Enter a department name.')
+    if(!newDepartment.trim())throw Error('Enter a sub-department name.')
     const result=await db.from('departments').insert({name:newDepartment.trim()})
-    if(result.error)throw Error('Could not add this department. Check whether the name already exists.')
+    if(result.error)throw Error('Could not add this sub-department. Check whether the name already exists.')
     setNewDepartment('')
    }else{
     if(!newTitle.trim())throw Error('Enter a designation.')
@@ -178,7 +178,7 @@ export default function Organisation(){
       onClick={()=>{setEditing({kind:'designation',id:role.id,previous:role.title});setDraft(role.title)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
   {editing&&<div className="overlay"><section className="dialog" role="dialog" aria-modal="true" aria-label="Rename shared record">
-   <h2>Rename {editing.kind==='department'?'Department':'Designation'}</h2>
+   <h2>Rename {editing.kind==='department'?'Sub-department':'Designation'}</h2>
    <p>Save to update this name in the organisation register.</p>
    <label>Name<input autoFocus value={draft} disabled={busy} onChange={event=>setDraft(event.target.value)}/></label>
    <div className="bar"><button disabled={busy||!draft.trim()} onClick={()=>void saveChange()}>{busy?'Saving…':'Save Name'}</button>
