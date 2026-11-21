@@ -259,7 +259,7 @@ export default function Directory({email}:{email:string}) {
    {selectChoices(profileOptions?.location??[],values.location??'').map(option=><option key={option} value={option}>{option}</option>)}
   </select></label>
  </>:null}{tab==='core'&&<h3>Employment</h3>}{(tab==='core'
- ? [employmentFields[0],employmentFields[1],employmentFields[4],employmentFields[2],employmentFields[3]].map(([key,label])=>({key,label:key==='work_location_mobility'?'Work Location':key==='employment_type'?'Employment Type':label}))
+ ? [employmentFields[0],employmentFields[1],employmentFields[4],employmentFields[2],employmentFields[3]].map(([key,label])=>({key,label:key==='work_location_mobility'?'Work Type':key==='employment_type'?'Employment Type':label}))
  : sections.filter(s=>s.key===tab).flatMap(s=>s.key==='background'?[...s.labels,'Highest Qualification Level']:[...s.labels]).map(label=>({key:fieldKey(label),label}))
  ).map(({key,label})=>{const group=tab==='current-payroll'?'payroll_sep_2026':'profile';if(group==='payroll_sep_2026'&&payrollProfileFields.has(label)){
  const value=label==='Employee ID#'?selected?.employee_no:label==='Full Name'?values.full_name:label==='Designation'?(chosenPosition?.title??selected?.designation):detail.profile.date_of_joining
