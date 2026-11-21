@@ -5,7 +5,7 @@ import {normalizeSpreadsheetXml} from './monthly-payroll'
 
 export type Bucket='core'|'profile'|'payroll'|'control'
 export type Field={header:string;bucket:Bucket;key:string}
-export type EmployeeRow={id:string;position_id:number|null;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;employment_state?:string;leaving_date?:string|null;updated_at:string}
+export type EmployeeRow={id:string;position_id?:number|null;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;employment_state?:string;leaving_date?:string|null;updated_at:string}
 export type DetailRow={employee_id:string;profile:Record<string,unknown>|null;payroll_sep_2026:Record<string,unknown>|null;updated_at:string}
 export type FamilyMember={full_name:string;age:number;date_of_birth?:string;pre_existing_conditions:string;cnic:string}
 export type FamilyRecord={employee_id:string;spouse:FamilyMember|null;children:FamilyMember[]|null;marital_status?:string|null;updated_at:string}
