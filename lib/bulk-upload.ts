@@ -19,7 +19,7 @@ const coreFields:Field[]=[
  {header:'Employee Name',bucket:'core',key:'full_name'},
  {header:'Position ID',bucket:'core',key:'position_id'},
  {header:'Designation',bucket:'core',key:'designation'},
- {header:'Department',bucket:'core',key:'department'},
+ {header:'Sub-department',bucket:'core',key:'department'},
  {header:'Reports To',bucket:'core',key:'reports_to_text'},
  {header:'Location',bucket:'core',key:'location'},
 ]
@@ -92,7 +92,7 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  guide.addRow(['Bandana employee bulk upload'])
  for(const line of [
   'Choose UPDATE for an existing employee and enter their six-digit Employee ID. YES/NO keeps its existing replacement behaviour.',
-  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name and Position ID. Department and Designation are derived from the position. An Active employee ID is assigned only when you apply.',
+  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name and Position ID. Sub-department and Designation are derived from the position. An Active employee ID is assigned only when you apply.',
   'Give each NEW row a unique Upload reference such as NEW-01 if adding family rows; repeat that reference on the Family sheet with Employee ID blank.',
   'Potential duplicates by name, CNIC or email must be resolved before applying. Credential actions run after the profile is saved.',
   'The Employees sheet starts with saved values. Family details are normally submitted by employees in the portal.',
