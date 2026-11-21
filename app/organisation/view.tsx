@@ -5,7 +5,7 @@ import {browserDb} from '../../lib/supabase'
 
 type Department={id:number;name:string}
 type Designation={id:number;title:string}
-type Position={id:number;position_code:string|null;title:string;location:string|null;department_id:number|null;designation_id:number|null}
+type Position={id:number;position_code:string|null;title:string;location:string|null;department_id:number|null;designation_id:number|null;reports_to_position_id:number|null}
 type Assignment={position_id:number|null}
 
 export default function Organisation(){
@@ -14,6 +14,11 @@ export default function Organisation(){
  const [positionDesignation,setPositionDesignation]=useState('')
  const [positionTitle,setPositionTitle]=useState('')
  const [parentPosition,setParentPosition]=useState('')
+ const [editPositionId,setEditPositionId]=useState('')
+ const [editPositionTitle,setEditPositionTitle]=useState('')
+ const [editPositionDepartment,setEditPositionDepartment]=useState('')
+ const [editPositionDesignation,setEditPositionDesignation]=useState('')
+ const [editParentPosition,setEditParentPosition]=useState('')
  const [departments,setDepartments]=useState<Department[]>([])
  const [designations,setDesignations]=useState<Designation[]>([])
  const [assignments,setAssignments]=useState<Assignment[]>([])
@@ -31,7 +36,7 @@ export default function Organisation(){
    db.from('departments').select('id,name').order('name'),
    db.from('designations').select('id,title').order('title'),
    db.from('employees').select('position_id').eq('employment_state','active').limit(2000),
-   db.from('positions').select('id,position_code,title,location,department_id,designation_id').order('title').order('id'),
+   db.from('positions').select('id,position_code,title,location,department_id,designation_id,reports_to_position_id').order('title').order('id'),
   ])
   if(depts.error||roles.error||people.error||seats.error)throw Error('Could not load organisation records.')
   setPositions(seats.data)
@@ -70,6 +75,23 @@ export default function Organisation(){
    }
    await load();setNotice('Added to the shared organisation records.')
   }catch(failure){setError(failure instanceof Error?failure.message:'Could not add the record.')}
+  finally{setBusy(false)}
+ }
+ async function savePositionEdit(){
+  if(busy||!editPositionId||!editPositionTitle.trim()||!editPositionDepartment||!editPositionDesignation)return
+  setBusy(true);setError('');setNotice('')
+  try{
+   const {data,error:saveError}=await browserDb().rpc('update_organisation_position',{
+    p_position_id:Number(editPositionId),
+    p_title:editPositionTitle.trim(),
+    p_department_id:Number(editPositionDepartment),
+    p_designation_id:Number(editPositionDesignation),
+    p_reports_to_position_id:editParentPosition?Number(editParentPosition):null,
+   })
+   if(saveError)throw Error(saveError.message)
+   await load()
+   setNotice(`Position ${data} updated. Assigned employees inherit the revised structure.`)
+  }catch(failure){setError(failure instanceof Error?failure.message:'Could not update the position.')}
   finally{setBusy(false)}
  }
  async function addPosition(){
@@ -123,6 +145,21 @@ export default function Organisation(){
     </select></label>
     <button disabled={busy||!positionTitle.trim()||!positionDepartment||!positionDesignation||!parentPosition}>Add Position</button>
    </form>
+  </section>
+  <section className="panel"><h2>Edit Existing Position</h2>
+   <form className="bar" onSubmit={event=>{event.preventDefault();void savePositionEdit()}}>
+    <label>Position<select required value={editPositionId} disabled={busy} onChange={event=>{
+     const value=event.target.value;setEditPositionId(value)
+     const position=positions.find(item=>String(item.id)===value)
+     if(position){setEditPositionTitle(position.title);setEditPositionDepartment(position.department_id==null?'':String(position.department_id));setEditPositionDesignation(position.designation_id==null?'':String(position.designation_id));setEditParentPosition(position.reports_to_position_id==null?'':String(position.reports_to_position_id))}
+    }}><option value="">Select position</option>{positions.map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title].filter(Boolean).join(' · ')}</option>)}</select></label>
+    <label>Department<select required value={editPositionDepartment} disabled={busy} onChange={event=>setEditPositionDepartment(event.target.value)}><option value="">Select department</option>{departments.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
+    <label>Designation<select required value={editPositionDesignation} disabled={busy} onChange={event=>setEditPositionDesignation(event.target.value)}><option value="">Select designation</option>{designations.map(role=><option key={role.id} value={role.id}>{role.id} · {role.title}</option>)}</select></label>
+    <label>Position Title<input required value={editPositionTitle} disabled={busy} onChange={event=>setEditPositionTitle(event.target.value)}/></label>
+    <label>Reports To<select value={editParentPosition} disabled={busy} onChange={event=>setEditParentPosition(event.target.value)}><option value="">No parent position</option>{positions.filter(position=>String(position.id)!==editPositionId).map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}</option>)}</select></label>
+    <button disabled={busy||!editPositionId||!editPositionTitle.trim()||!editPositionDepartment||!editPositionDesignation}>Save Position</button>
+   </form>
+   <p className="muted">Changing a Position updates the Department, Designation and reporting line inherited by every employee assigned to it. The Position ID remains unchanged.</p>
   </section>
   <section className="panel"><h2>Departments</h2>
    <div className="bar"><label>New Department<input value={newDepartment} disabled={busy} onChange={event=>setNewDepartment(event.target.value)}/></label>
