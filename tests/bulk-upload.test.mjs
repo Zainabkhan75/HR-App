@@ -83,7 +83,7 @@ test('NEW rows keep ID blank, link family by reference and ignore replacement fl
  const sheet=book.getWorksheet('Employees'),headers=sheet.getRow(2).values,row=sheet.addRow([])
  const put=(name,value)=>{row.getCell(headers.indexOf(name)).value=value}
  put('Employee ID','');put('Action (NEW/UPDATE)','NEW');put('Upload reference','NEW-01')
- put('Employee Name','Entirely New Person');put('Position ID','1');put('Designation','Sales Executive');put('Department','Retail Ops')
+ put('Employee Name','Entirely New Person');row.getCell(6).value='1';put('Designation','Sales Executive');put('Department','Retail Ops')
  book.getWorksheet('Family').addRow(['','Entirely New Person','Child',1,'','Child',5,'','','NEW-01'])
  const parsed=await bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),bulk.fieldsFor(snapshot))
  const added=parsed.find(r=>r.action==='NEW');assert.equal(added.reference,'NEW-01');assert.equal(added.employeeNo,'');assert.equal(added.family.length,1)
