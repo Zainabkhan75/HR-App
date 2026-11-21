@@ -5,7 +5,7 @@ import {normalizeSpreadsheetXml} from './monthly-payroll'
 
 export type Bucket='core'|'profile'|'payroll'|'control'
 export type Field={header:string;bucket:Bucket;key:string}
-export type EmployeeRow={id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;employment_state?:string;leaving_date?:string|null;updated_at:string}
+export type EmployeeRow={id:string;position_id:number|null;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;employment_state?:string;leaving_date?:string|null;updated_at:string}
 export type DetailRow={employee_id:string;profile:Record<string,unknown>|null;payroll_sep_2026:Record<string,unknown>|null;updated_at:string}
 export type FamilyMember={full_name:string;age:number;date_of_birth?:string;pre_existing_conditions:string;cnic:string}
 export type FamilyRecord={employee_id:string;spouse:FamilyMember|null;children:FamilyMember[]|null;marital_status?:string|null;updated_at:string}
@@ -17,6 +17,7 @@ export type PlannedRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string
 
 const coreFields:Field[]=[
  {header:'Employee Name',bucket:'core',key:'full_name'},
+ {header:'Position ID',bucket:'core',key:'position_id'},
  {header:'Designation',bucket:'core',key:'designation'},
  {header:'Department',bucket:'core',key:'department'},
  {header:'Reports To',bucket:'core',key:'reports_to_text'},
@@ -91,7 +92,7 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  guide.addRow(['Bandana employee bulk upload'])
  for(const line of [
   'Choose UPDATE for an existing employee and enter their six-digit Employee ID. YES/NO keeps its existing replacement behaviour.',
-  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name, department and designation. An Active employee ID is assigned only when you apply.',
+  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name and Position ID. Department and Designation are derived from the position. An Active employee ID is assigned only when you apply.',
   'Give each NEW row a unique Upload reference such as NEW-01 if adding family rows; repeat that reference on the Family sheet with Employee ID blank.',
   'Potential duplicates by name, CNIC or email must be resolved before applying. Credential actions run after the profile is saved.',
   'The Employees sheet starts with saved values. Family details are normally submitted by employees in the portal.',
@@ -227,7 +228,8 @@ export function planUpload(rows:UploadRow[],snapshot:Snapshot,fields:Field[]):Pl
  const normalize=(value:unknown)=>cellText(value).toLowerCase().replace(/[^a-z0-9]/g,'')
  const claimed:UploadRow[]=[]
  for(const row of rows.filter(r=>r.action==='NEW')){
-  if(!row.core.full_name?.trim()||!row.core.department?.trim()||!row.core.designation?.trim())throw Error(`NEW ${row.name}: name, department and designation are required`)
+  if(!row.core.full_name?.trim()||!row.core.position_id?.trim())throw Error(`NEW ${row.name}: name and Position ID are required`)
+  if(!/^\\d+$/.test(row.core.position_id.trim()))throw Error(`NEW ${row.name}: Position ID must be numeric`)
   const cnic=normalize(row.profile.cnic_passport),emails=[row.profile.email,row.profile.personal_email].map(normalize).filter(Boolean)
   const duplicate=(name:string,p:Record<string,unknown>)=>normalize(name)===normalize(row.name)||(!!cnic&&normalize(p.cnic_passport)===cnic)||emails.some(x=>[p.email,p.personal_email].map(normalize).includes(x))
   if(snapshot.employees.some(e=>duplicate(e.full_name,snapshot.details.find(d=>d.employee_id===e.id)?.profile??{}))||claimed.some(r=>duplicate(r.name,r.profile)))throw Error(`Possible duplicate for NEW ${row.name}: matching name, CNIC or email. Review before adding.`)
