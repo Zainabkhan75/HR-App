@@ -4,7 +4,7 @@ import {useEffect,useState} from 'react'
 import {browserDb} from '../../lib/supabase'
 
 type Department={id:number;name:string}
-type Designation={id:number;department_id:number|null;title:string}
+type Designation={id:number;department_id?:number|null;title:string}
 type Position={id:number;position_code:string|null;title:string;location:string|null}
 type Assignment={designation_id:number|null}
 
