@@ -127,7 +127,7 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   }}>
    {editableProfileSections.map(section=><div key={section.title}><h3>{section.title}</h3><div className="family-fields">{section.fields.map(([key,label])=><label key={key} data-profile-field={key} data-profile-error={fieldErrors[key]?true:undefined} className={key==="permanent_address"?"field-label-exact":undefined}>
     {key==='probation'?'Probation (months)':key==='salary_transfer_method'?'Method of Payment':label}
-    {key==='department'?<input readOnly value={base.hierarchy?.department??''}/>:['reports_to_text','line_manager_employee_no'].includes(key)?<input readOnly value={key==='reports_to_text'?reportingLabel(base.hierarchy):occupantLabel(base.hierarchy)}/>: 'readOnly' in section?<input readOnly value={draft[key]}/>:key==='offer_date'?<>
+    {key==='department'?<label>Sub-department<input readOnly value={base.hierarchy?.department??''}/></label>:['reports_to_text','line_manager_employee_no'].includes(key)?<input readOnly value={key==='reports_to_text'?reportingLabel(base.hierarchy):occupantLabel(base.hierarchy)}/>: 'readOnly' in section?<input readOnly value={draft[key]}/>:key==='offer_date'?<>
      <input readOnly value={displayShortDate(calculatedConfirmationDate)} placeholder="Calculated from joining date and probation"/>
      {!calculatedConfirmationDate&&<span className="field-hint">Enter Date of Joining and Probation (months) to calculate this date.</span>}
     </>:key==='salary_transfer_method'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
