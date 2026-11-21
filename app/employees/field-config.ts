@@ -23,6 +23,6 @@ export const retiredSalaryKeys = new Set([
 ])
 export const payrollProfileFields = new Set(['Employee ID#','Full Name','Date of Joining','Designation'])
 
-export const originalHeaders = ['Database Record ID','Employee Name','Designation','Department / Function (source mapping)','Reports To','Location','Record Status', ...sections.flatMap(s=>[...s.labels])]
+export const originalHeaders = ['Database Record ID','Employee Name','Designation','Sub-department / Function (source mapping)','Reports To','Location','Record Status', ...sections.flatMap(s=>[...s.labels])]
 const savedFieldKeys: Record<string,string> = {'Work Mobile Number':'mobile','Personal Mobile Number':'personal_mobile','Work Email':'email','Current Address':'personal_address','Permanent Address (as per ID card)':'permanent_address','Reporting to':'reporting_line_basis'}
 export const fieldKey = (label:string)=>savedFieldKeys[label] ?? label.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')
