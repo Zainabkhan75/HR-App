@@ -159,7 +159,7 @@ export default function Directory({email}:{email:string}) {
    <a href="/activity">Activity</a>
    <a href="/credentials">Credentials</a>
    <a href="/bulk-upload">Bulk Upload</a>
-   <a href="/organisation">Departments &amp; Designations</a>
+   <a href="/organisation">Org Maintain</a>
   </nav>
  </header>
  <section className="metrics directory-metrics" aria-label="Active employee counters">
@@ -184,7 +184,7 @@ export default function Directory({email}:{email:string}) {
  {(selected||adding)&&<div className="overlay"><div className="dialog wide" role="dialog" aria-modal="true" aria-label={selected?'Edit employee':'Add employee'}><div className="bar"><h2>{selected?'Employee Profile':'New employee'}</h2><button className="secondary" type="button" onClick={close}>Close</button></div>{selected?<p className="mono">{selected.employee_no} · {selected.employment_state}</p>:<p className="muted">A new employee number is assigned on save.</p>}
  {profileEmailDiffers&&<p className="error" role="alert">The sign-in email on file is <strong>{signInEmail}</strong>. It differs from the work and personal emails shown in this profile. Review the account in <a href="/credentials">Credentials</a>.</p>}
  {tab==='core'&&<label><input type="checkbox" checked={detail.profile.shared_work_mailbox==='true'} disabled={busy||!detailsReady} onChange={event=>editField('shared_work_mailbox',String(event.target.checked),'profile')}/> Shared work mailbox</label>}
- {tab==='core'&&<p className="muted">Create missing positions in the <a href="/organisation" target="_blank" rel="noopener noreferrer">organisation section</a>, then refresh the list. <button type="button" className="link" onClick={()=>void loadDesignations()}>Refresh dropdowns</button></p>}
+ {tab==='core'&&<p className="muted">Create missing positions in the <a href="/organisation" target="_blank" rel="noopener noreferrer">Org Maintain</a>, then refresh the list. <button type="button" className="link" onClick={()=>void loadDesignations()}>Refresh dropdowns</button></p>}
  <div className="tabs">{[{key:'core',title:'Core Profile'},...(selected?[{key:'family',title:'Family & Dependants'}]:[]),...sections.filter(section=>section.key!=='employment')].map(s=><button key={s.key} className={tab===s.key?'tab active-tab':'tab'} type="button" onClick={()=>setTab(s.key)}>{s.title}</button>)}</div>
  {selected&&<FamilyEditor key={selected.id} employeeId={selected.id} active={tab==='family'}/>}
  {tab!=='family'&&<form onSubmit={save}>{tab==='salary'&&<>
