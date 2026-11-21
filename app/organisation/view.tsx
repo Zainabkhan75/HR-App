@@ -90,8 +90,10 @@ export default function Organisation(){
   finally{setBusy(false)}
  }
  const counts=new Map<number,number>()
+ const designationByPosition=new Map(positions.map(position=>[position.id,position.designation_id]))
  for(const assignment of assignments){
-  if(assignment.designation_id!==null)counts.set(assignment.designation_id,(counts.get(assignment.designation_id)??0)+1)
+  const designationId=assignment.position_id==null?null:designationByPosition.get(assignment.position_id)
+  if(designationId!=null)counts.set(designationId,(counts.get(designationId)??0)+1)
  }
  return <main className="shell">
   <header><div><div className="eyebrow">BANDANA / HR ADMINISTRATION</div><h1>Positions, Departments &amp; Designations</h1></div>
