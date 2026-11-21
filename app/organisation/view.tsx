@@ -5,9 +5,16 @@ import {browserDb} from '../../lib/supabase'
 
 type Department={id:number;name:string}
 type Designation={id:number;department_id:number;title:string}
+type Position={id:number;position_code:string|null;title:string;location:string|null}
 type Assignment={designation_id:number|null}
 
 export default function Organisation(){
+ const [positions,setPositions]=useState<Position[]>([])
+ const [positionDepartment,setPositionDepartment]=useState('')
+ const [positionDesignation,setPositionDesignation]=useState('')
+ const [positionTitle,setPositionTitle]=useState('')
+ const [parentPosition,setParentPosition]=useState('')
+ const [positionLocation,setPositionLocation]=useState('')
  const [departments,setDepartments]=useState<Department[]>([])
  const [designations,setDesignations]=useState<Designation[]>([])
  const [assignments,setAssignments]=useState<Assignment[]>([])
@@ -22,12 +29,14 @@ export default function Organisation(){
 
  async function load(){
   const db=browserDb()
-  const [depts,roles,people]=await Promise.all([
+  const [depts,roles,people,seats]=await Promise.all([
    db.from('departments').select('id,name').order('name'),
    db.from('designations').select('id,department_id,title').order('title'),
    db.from('employees').select('designation_id').eq('employment_state','active').limit(2000),
+   db.from('positions').select('id,position_code,title,location').order('title').order('id'),
   ])
-  if(depts.error||roles.error||people.error)throw Error('Could not load departments and designations.')
+  if(depts.error||roles.error||people.error||seats.error)throw Error('Could not load organisation records.')
+  setPositions(seats.data)
   setDepartments(depts.data);setDesignations(roles.data);setAssignments(people.data)
  }
  useEffect(()=>{void load().catch(failure=>setError(failure.message))},[])
@@ -65,16 +74,59 @@ export default function Organisation(){
   }catch(failure){setError(failure instanceof Error?failure.message:'Could not add the record.')}
   finally{setBusy(false)}
  }
+ async function addPosition(){
+  if(busy||!positionTitle.trim()||!positionDepartment||!positionDesignation||!parentPosition)return
+  setBusy(true);setError('');setNotice('')
+  try{
+   const {data,error:saveError}=await browserDb().rpc('create_organisation_position',{
+    p_title:positionTitle.trim(),
+    p_department_id:Number(positionDepartment),
+    p_designation_id:Number(positionDesignation),
+    p_reports_to_position_id:Number(parentPosition),
+    p_location:positionLocation.trim()||null,
+   })
+   if(saveError)throw Error(saveError.message)
+   setPositionTitle('');setPositionLocation('');setParentPosition('')
+   setNotice(`Position ${data} created.`)
+   await load().catch(()=>setError('The position was saved. Refresh to reload the organisation records.'))
+  }catch(failure){setError(failure instanceof Error?failure.message:'Could not add the position.')}
+  finally{setBusy(false)}
+ }
  const names=new Map(departments.map(item=>[item.id,item.name]))
  const counts=new Map<number,number>()
  for(const assignment of assignments){
   if(assignment.designation_id!==null)counts.set(assignment.designation_id,(counts.get(assignment.designation_id)??0)+1)
  }
  return <main className="shell">
-  <header><div><div className="eyebrow">BANDANA / HR ADMINISTRATION</div><h1>Departments & Designations</h1>
-   <p>Each designation belongs to one department. Employees assigned to it share its name and department.</p></div>
+  <header><div><div className="eyebrow">BANDANA / HR ADMINISTRATION</div><h1>Positions, Departments &amp; Designations</h1></div>
    <nav className="head-actions"><a href="/employees">Employee Directory</a><a href="/reports">Reports</a></nav></header>
   {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
+  <section className="panel"><h2>Add New Position</h2>
+   <form className="bar" onSubmit={event=>{event.preventDefault();void addPosition()}}>
+    <label>Department<select required value={positionDepartment} disabled={busy}
+     onChange={event=>{setPositionDepartment(event.target.value);setPositionDesignation('')}}>
+     <option value="">Select department</option>
+     {departments.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}
+    </select></label>
+    <label>Designation<select required value={positionDesignation} disabled={busy||!positionDepartment} onChange={event=>{
+     const designation=designations.find(item=>String(item.id)===event.target.value)
+     setPositionDesignation(event.target.value)
+     if(designation&&!positionTitle.trim())setPositionTitle(designation.title)
+    }}>
+     <option value="">Select designation</option>
+     {designations.filter(role=>role.department_id===Number(positionDepartment)).map(role=><option key={role.id} value={role.id}>{role.title}</option>)}
+    </select></label>
+    <label>Position Title<input required value={positionTitle} disabled={busy} onChange={event=>setPositionTitle(event.target.value)}/></label>
+    <label>Reports To<select required value={parentPosition} disabled={busy} onChange={event=>setParentPosition(event.target.value)}>
+     <option value="">Select reporting position</option>
+     {positions.map(position=><option key={position.id} value={position.id}>
+      {[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}
+     </option>)}
+    </select></label>
+    <label>Location (optional)<input value={positionLocation} disabled={busy} onChange={event=>setPositionLocation(event.target.value)}/></label>
+    <button disabled={busy||!positionTitle.trim()||!positionDepartment||!positionDesignation||!parentPosition}>Add Position</button>
+   </form>
+  </section>
   <section className="panel"><h2>Departments</h2>
    <div className="bar"><label>New Department<input value={newDepartment} disabled={busy} onChange={event=>setNewDepartment(event.target.value)}/></label>
     <button disabled={busy||!newDepartment.trim()} onClick={()=>void add('department')}>Add Department</button></div>
@@ -95,7 +147,7 @@ export default function Organisation(){
   </section>
   {editing&&<div className="overlay"><section className="dialog" role="dialog" aria-modal="true" aria-label="Rename shared record">
    <h2>Rename {editing.kind==='department'?'Department':'Designation'}</h2>
-   <p>This changes the displayed name for every linked position and employee.</p>
+   <p>Save to update this name in the organisation register.</p>
    <label>Name<input autoFocus value={draft} disabled={busy} onChange={event=>setDraft(event.target.value)}/></label>
    <div className="bar"><button disabled={busy||!draft.trim()} onClick={()=>void saveChange()}>{busy?'Saving…':'Save Name'}</button>
     <button className="secondary" disabled={busy} onClick={()=>setEditing(null)}>Cancel</button></div>
