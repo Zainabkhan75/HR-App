@@ -31,7 +31,8 @@ export default function Directory({email}:{email:string}) {
  const [positionId,setPositionId]=useState('')
  const [positionSearch,setPositionSearch]=useState('')
  const [departmentFilter,setDepartmentFilter]=useState('')
- const [designationFilter,setDesignationFilter]=useState('')
+ const [positionPickerOpen,setPositionPickerOpen]=useState(false)
+ const [highlightedPosition,setHighlightedPosition]=useState(0)
  const [positionListReady,setPositionListReady]=useState(false)
  const [action,setAction]=useState<{type:'deactivate'|'reactivate'|'delete';row:Employee}|null>(null),[reason,setReason]=useState(''),[confirm,setConfirm]=useState(''),[leavingDate,setLeavingDate]=useState('')
  const [hierarchy,setHierarchy]=useState(new Map<string,Hierarchy>())
@@ -86,18 +87,26 @@ export default function Directory({email}:{email:string}) {
  const parentOccupant=rows.find(row=>row.position_id===parentPosition?.id&&row.employment_state==='active'&&row.id!==selected?.id)
  const occupiedPositions=new Set(rows.filter(row=>row.employment_state==='active'&&row.id!==selected?.id).map(row=>row.position_id))
  const departmentOptions=profileOptions?.department_options??[]
- const designationOptions=positions.filter(position=>!departmentFilter||String(position.department_id)===departmentFilter)
- const availableDesignations=[...new Map(designationOptions.map(position=>[position.designation_id,position.title])).entries()]
  const positionLabel=(position:PositionOption)=>[position.position_code??position.id,position.title,position.location,departmentOptions.find(department=>department.id===position.department_id)?.name].filter(Boolean).join(' · ')
- const positionOptions=designationOptions.filter(position=>
-  (!designationFilter||String(position.designation_id)===designationFilter)&&
+ const positionOptions=positions.filter(position=>
+  String(position.department_id)===departmentFilter&&
   positionLabel(position).toLowerCase().includes(positionSearch.trim().toLowerCase())
  )
+ const selectablePositions=positionOptions.filter(position=>!occupiedPositions.has(position.id))
+ const activePosition=selectablePositions[highlightedPosition]
+ function closePositionPicker(){
+  setPositionPickerOpen(false)
+  setPositionSearch('')
+  setHighlightedPosition(0)
+ }
+ function selectPosition(position:PositionOption){
+  setPositionId(String(position.id))
+  closePositionPicker()
+ }
  async function edit(row:Employee|null){
  setPositionId(row?.position_id==null?'':String(row.position_id))
  setDepartmentFilter(row?.department_id==null?'':String(row.department_id))
- setDesignationFilter(row?.designation_id==null?'':String(row.designation_id))
- setPositionSearch(row?.designation??'')
+ closePositionPicker()
  void loadDesignations();setError('');setNotice('');setCheck('');setSelected(row);setDetailsReady(!row);setAdding(!row);setTab('core');setValues(Object.fromEntries(editableFields.map(key=>[key,row?.[key]??''])));setDetail({profile:{},payroll_sep_2026:{}});setOriginalProfile({});if(row){const {data,error}=await browserDb().from('employee_details').select('profile,payroll_sep_2026').eq('employee_id',row.id).maybeSingle();if(error){setError('Could not load extended details: '+error.message)}else{setDetailsReady(true);if(data){setOriginalProfile(data.profile??{});setDetail({profile:data.profile??{},payroll_sep_2026:data.payroll_sep_2026??{}})}}}}
  function close(){setSelected(null);setAdding(false);setAction(null)}
  async function save(e:React.FormEvent){e.preventDefault();if(!detailsReady||busy)return;setBusy(true);setError('');const db=browserDb();const payload:Record<string,string|number|null>={
@@ -105,7 +114,7 @@ export default function Directory({email}:{email:string}) {
   location:values.location?.trim()||null,
   source_note:values.source_note?.trim()||null,
  };
- if((!selected||selected.position_id!=null||departmentFilter!==String(selected.department_id??'')||designationFilter!==String(selected.designation_id??''))&&!chosenPosition){setBusy(false);setError('Select an available position.');return}
+ if((!selected||selected.position_id!=null||departmentFilter!==String(selected.department_id??''))&&!chosenPosition){setBusy(false);setError('Select an available position.');return}
  if(chosenPosition&&chosenPosition.id!==selected?.position_id)payload.position_id=chosenPosition.id;
  let resultId=selected?.id
  if(selected){if(values.leaving_date!==undefined)payload.leaving_date=values.leaving_date||null;const r=await db.from('employees').update(payload).eq('id',selected.id);if(r.error){setBusy(false);setError(r.error.message);return}}
@@ -175,7 +184,7 @@ export default function Directory({email}:{email:string}) {
  {(selected||adding)&&<div className="overlay"><div className="dialog wide" role="dialog" aria-modal="true" aria-label={selected?'Edit employee':'Add employee'}><div className="bar"><h2>{selected?'Employee Profile':'New employee'}</h2><button className="secondary" type="button" onClick={close}>Close</button></div>{selected?<p className="mono">{selected.employee_no} · {selected.employment_state}</p>:<p className="muted">A new employee number is assigned on save.</p>}
  {profileEmailDiffers&&<p className="error" role="alert">The sign-in email on file is <strong>{signInEmail}</strong>. It differs from the work and personal emails shown in this profile. Review the account in <a href="/credentials">Credentials</a>.</p>}
  {tab==='core'&&<label><input type="checkbox" checked={detail.profile.shared_work_mailbox==='true'} disabled={busy||!detailsReady} onChange={event=>editField('shared_work_mailbox',String(event.target.checked),'profile')}/> Shared work mailbox</label>}
- {tab==='core'&&<p className="muted">If a department or designation is missing, HR creates it in the <a href="/organisation" target="_blank" rel="noopener noreferrer">separate maintenance section</a> and returns to the employee form. <button type="button" className="link" onClick={()=>void loadDesignations()}>Refresh dropdowns</button></p>}
+ {tab==='core'&&<p className="muted">Create missing positions in the <a href="/organisation" target="_blank" rel="noopener noreferrer">organisation section</a>, then refresh the list. <button type="button" className="link" onClick={()=>void loadDesignations()}>Refresh dropdowns</button></p>}
  <div className="tabs">{[{key:'core',title:'Core Profile'},...(selected?[{key:'family',title:'Family & Dependants'}]:[]),...sections.filter(section=>section.key!=='employment')].map(s=><button key={s.key} className={tab===s.key?'tab active-tab':'tab'} type="button" onClick={()=>setTab(s.key)}>{s.title}</button>)}</div>
  {selected&&<FamilyEditor key={selected.id} employeeId={selected.id} active={tab==='family'}/>}
  {tab!=='family'&&<form onSubmit={save}>{tab==='salary'&&<>
@@ -188,23 +197,56 @@ export default function Directory({email}:{email:string}) {
  })}
  </fieldset></>}{tab==='core'?<>
   <label>Full Name<input required value={values.full_name??''} onChange={e=>setValues(v=>({...v,full_name:e.target.value}))}/></label>
-  <label>Department<select value={departmentFilter} disabled={busy||!positionListReady} onChange={e=>{setDepartmentFilter(e.target.value);setDesignationFilter('');setPositionId('');setPositionSearch('')}}>
-   <option value="">All departments</option>
+  <label>Department<select value={departmentFilter} disabled={busy||!positionListReady} onChange={e=>{setDepartmentFilter(e.target.value);setPositionId('');closePositionPicker()}}>
+   <option value="">Select department</option>
    {departmentOptions.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}
   </select></label>
-  <label>Designation<select value={designationFilter} disabled={busy||!positionListReady} onChange={e=>{const id=e.target.value;setDesignationFilter(id);setPositionId('');setPositionSearch(availableDesignations.find(([key])=>String(key)===id)?.[1]??'')}}>
-   <option value="">All designations</option>
-   {availableDesignations.map(([id,title])=><option key={id} value={id}>{title}</option>)}
-  </select></label>
-  <fieldset>
-   <legend>Position</legend>
-   <label>Search positions<input type="search" value={positionSearch} disabled={busy||!positionListReady} onChange={e=>setPositionSearch(e.target.value)} placeholder="Search by title, code or location"/></label>
-   <select aria-label="Position" value={positionId} required={adding||!!selected?.position_id} disabled={busy||!positionListReady} onChange={e=>{const id=e.target.value;const position=positions.find(item=>String(item.id)===id);if(!position)return;setPositionId(id);setDepartmentFilter(String(position.department_id));setDesignationFilter(String(position.designation_id))}}>
-   <option value="" disabled>Select a position</option>
-   {chosenPosition&&!positionOptions.includes(chosenPosition)&&<option value={chosenPosition.id}>{positionLabel(chosenPosition)}</option>}
-   {positionOptions.map(position=><option key={position.id} value={position.id} disabled={occupiedPositions.has(position.id)}>{positionLabel(position)}{occupiedPositions.has(position.id)?' (Occupied)':''}</option>)}
-   </select>
-  </fieldset>
+  <div style={{position:'relative',minWidth:0}}>
+   <label>Position
+    <input role="combobox" aria-autocomplete="list" aria-expanded={positionPickerOpen}
+     aria-controls={positionPickerOpen?'employee-position-options':undefined}
+     aria-activedescendant={positionPickerOpen&&activePosition?'employee-position-'+activePosition.id:undefined}
+     value={positionPickerOpen?positionSearch:chosenPosition?positionLabel(chosenPosition):''}
+     placeholder={departmentFilter?'Search or select a position':'Select a department first'}
+     disabled={busy||!positionListReady||!departmentFilter}
+     onFocus={()=>setPositionPickerOpen(true)}
+     onClick={()=>setPositionPickerOpen(true)}
+     onBlur={closePositionPicker}
+     onChange={event=>{setPositionSearch(event.target.value);setPositionPickerOpen(true);setHighlightedPosition(0)}}
+     onKeyDown={event=>{
+      if(event.key==='Escape'&&positionPickerOpen){event.preventDefault();event.stopPropagation();closePositionPicker()}
+      if(event.key==='ArrowDown'||event.key==='ArrowUp'){
+       event.preventDefault()
+       if(!positionPickerOpen){setPositionPickerOpen(true);return}
+       const step=event.key==='ArrowDown'?1:-1
+       const next=Math.max(0,Math.min(highlightedPosition+step,selectablePositions.length-1))
+       setHighlightedPosition(next)
+       document.getElementById('employee-position-'+selectablePositions[next]?.id)?.scrollIntoView({block:'nearest'})
+      }
+      if(event.key==='Enter'){
+       event.preventDefault()
+       if(positionPickerOpen&&activePosition)selectPosition(activePosition)
+       else setPositionPickerOpen(true)
+      }
+     }}
+    />
+   </label>
+   {positionPickerOpen&&<div style={{position:'absolute',zIndex:2,width:'100%',maxHeight:220,overflowY:'auto',background:'white',border:'1px solid #cbd5e1',borderRadius:6}}>
+    <ul id="employee-position-options" role="listbox" aria-label="Positions" style={{listStyle:'none',margin:0,padding:0}}>
+     {positionOptions.map(position=>{
+      const occupied=occupiedPositions.has(position.id)
+      return <li key={position.id} id={'employee-position-'+position.id} role="option"
+       aria-selected={String(position.id)===positionId} aria-disabled={occupied||undefined}
+       style={{padding:'8px 10px',cursor:occupied?'default':'pointer',opacity:occupied?0.6:1,background:position.id===activePosition?.id?'#eaf2fa':undefined}}
+       onMouseDown={event=>event.preventDefault()}
+       onClick={()=>{if(!occupied)selectPosition(position)}}>
+       {positionLabel(position)}{occupied?' (Occupied)':''}
+      </li>
+     })}
+    </ul>
+    {!positionOptions.length&&<p role="status" style={{margin:10}}>No matching positions in this department.</p>}
+   </div>}
+  </div>
   <label>Reports To<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?reportingDesignation(selected):parentPosition?.title??(chosenPosition?'Reporting position unassigned':'')}/></label>
   <label>Line Manager Name<input readOnly value={chosenPosition?.id===selected?.position_id&&selected?occupantLabel(hierarchy.get(selected.id)):parentOccupant?.full_name??(parentPosition?'Vacant':'')}/></label>
   <label>Location<select value={values.location??''} disabled={busy||!profileOptions} onChange={e=>setValues(v=>({...v,location:e.target.value}))}>
