@@ -142,7 +142,7 @@ export default function Organisation(){
    <button disabled={busy||!selected||!newTitle.trim()} onClick={()=>void add('designation')}>Add Designation</button></div>
    <div className="tablewrap"><table><thead><tr><th>Designation ID</th><th>Designation</th><th>Department</th><th>Active Employees</th><th>Actions</th></tr></thead>
     <tbody>{designations.filter(role=>!selected||role.department_id===Number(selected)).map(role=><tr key={role.id}><td>{role.id}</td><td>{role.title}</td>
-     <td>{names.get(role.department_id)}</td><td>{counts.get(role.id)??0}</td><td><button className="link" disabled={busy}
+     <td>{role.department_id?names.get(role.department_id):''}</td><td>{counts.get(role.id)??0}</td><td><button className="link" disabled={busy}
       onClick={()=>{setEditing({kind:'designation',id:role.id,previous:role.title});setDraft(role.title)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
   {editing&&<div className="overlay"><section className="dialog" role="dialog" aria-modal="true" aria-label="Rename shared record">
