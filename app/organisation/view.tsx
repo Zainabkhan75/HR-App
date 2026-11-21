@@ -37,15 +37,16 @@ export default function Organisation(){
 
  async function load(){
   const db=browserDb()
-  const [depts,roles,people,seats]=await Promise.all([
-   db.from('departments').select('id,name').order('name'),
+  const [orgs,subs,roles,people,seats]=await Promise.all([
+   db.from('organisation_departments').select('id,name').order('name'),
+   db.from('departments').select('id,name,parent_department_id').order('name'),
    db.from('designations').select('id,title').order('title'),
    db.from('employees').select('position_id').eq('employment_state','active').limit(2000),
    db.from('positions').select('id,position_code,title,location,department_id,designation_id,reports_to_position_id').order('title').order('id'),
   ])
-  if(depts.error||roles.error||people.error||seats.error)throw Error('Could not load organisation records.')
+  if(orgs.error||subs.error||roles.error||people.error||seats.error)throw Error('Could not load organisation records.')
   setPositions(seats.data)
-  setDepartments(depts.data);setDesignations(roles.data);setAssignments(people.data)
+  setOrganisationDepartments(orgs.data);setSubDepartments(subs.data);setDesignations(roles.data);setAssignments(people.data)
  }
  useEffect(()=>{void load().catch(failure=>setError(failure.message))},[])
 
