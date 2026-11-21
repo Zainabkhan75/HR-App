@@ -4,7 +4,7 @@ import {useEffect,useState} from 'react'
 import {browserDb} from '../../lib/supabase'
 
 type Department={id:number;name:string}
-type Designation={id:number;department_id:number;title:string}
+type Designation={id:number;department_id:number|null;title:string}
 type Position={id:number;position_code:string|null;title:string;location:string|null}
 type Assignment={designation_id:number|null}
 
@@ -31,7 +31,7 @@ export default function Organisation(){
   const db=browserDb()
   const [depts,roles,people,seats]=await Promise.all([
    db.from('departments').select('id,name').order('name'),
-   db.from('designations').select('id,department_id,title').order('title'),
+   db.from('designations').select('id,title').order('title'),
    db.from('employees').select('designation_id').eq('employment_state','active').limit(2000),
    db.from('positions').select('id,position_code,title,location').order('title').order('id'),
   ])
@@ -114,7 +114,7 @@ export default function Organisation(){
      if(designation&&!positionTitle.trim())setPositionTitle(designation.title)
     }}>
      <option value="">Select designation</option>
-     {designations.filter(role=>role.department_id===Number(positionDepartment)).map(role=><option key={role.id} value={role.id}>{role.title}</option>)}
+     {designations.map(role=><option key={role.id} value={role.id}>{role.title}</option>)}
     </select></label>
     <label>Position Title<input required value={positionTitle} disabled={busy} onChange={event=>setPositionTitle(event.target.value)}/></label>
     <label>Reports To<select required value={parentPosition} disabled={busy} onChange={event=>setParentPosition(event.target.value)}>
