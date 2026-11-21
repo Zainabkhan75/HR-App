@@ -5,7 +5,7 @@ import {browserDb} from '../../lib/supabase'
 
 type Department={id:number;name:string}
 type Designation={id:number;department_id?:number|null;title:string}
-type Position={id:number;position_code:string|null;title:string;location:string|null}
+type Position={id:number;position_code:string|null;title:string;location:string|null;department_id:number|null}
 type Assignment={designation_id:number|null}
 
 export default function Organisation(){
@@ -31,7 +31,7 @@ export default function Organisation(){
    db.from('departments').select('id,name').order('name'),
    db.from('designations').select('id,title').order('title'),
    db.from('employees').select('designation_id').eq('employment_state','active').limit(2000),
-   db.from('positions').select('id,position_code,title,location').order('title').order('id'),
+   db.from('positions').select('id,position_code,title,location,department_id').order('title').order('id'),
   ])
   if(depts.error||roles.error||people.error||seats.error)throw Error('Could not load organisation records.')
   setPositions(seats.data)
@@ -100,11 +100,11 @@ export default function Organisation(){
   <section className="panel"><h2>Add New Position</h2>
    <form className="bar" onSubmit={event=>{event.preventDefault();void addPosition()}}>
     <label>Department<select required value={positionDepartment} disabled={busy}
-     onChange={event=>{setPositionDepartment(event.target.value);setPositionDesignation('')}}>
+     onChange={event=>setPositionDepartment(event.target.value)}>
      <option value="">Select department</option>
      {departments.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}
     </select></label>
-    <label>Designation<select required value={positionDesignation} disabled={busy||!positionDepartment} onChange={event=>{
+    <label>Designation<select required value={positionDesignation} disabled={busy} onChange={event=>{
      const designation=designations.find(item=>String(item.id)===event.target.value)
      setPositionDesignation(event.target.value)
      if(designation&&!positionTitle.trim())setPositionTitle(designation.title)
@@ -125,9 +125,9 @@ export default function Organisation(){
   <section className="panel"><h2>Departments</h2>
    <div className="bar"><label>New Department<input value={newDepartment} disabled={busy} onChange={event=>setNewDepartment(event.target.value)}/></label>
     <button disabled={busy||!newDepartment.trim()} onClick={()=>void add('department')}>Add Department</button></div>
-   <div className="tablewrap"><table><thead><tr><th>Department ID</th><th>Department</th><th>Designations</th><th>Actions</th></tr></thead>
+   <div className="tablewrap"><table><thead><tr><th>Department ID</th><th>Department</th><th>Positions</th><th>Actions</th></tr></thead>
     <tbody>{departments.map(department=><tr key={department.id}><td>{department.id}</td><td>{department.name}</td>
-     <td>{designations.filter(role=>role.department_id===department.id).length}</td>
+     <td>{positions.filter(position=>position.department_id===department.id).length}</td>
      <td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'department',id:department.id,previous:department.name});setDraft(department.name)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
   <section className="panel"><h2>Designations</h2><div className="bar">
