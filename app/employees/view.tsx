@@ -18,6 +18,7 @@ type DesignationOption={id:number;title:string}
 type SubDepartmentOption={id:number;name:string;parent_department_id:string|null}
 type OrganisationDepartmentOption={id:string;name:string}
 type Employee={position_id:number|null;department_id:number|null;designation_id:number|null;employee_details?:{manager_no:string|null;email:string|null;personal_email:string|null}|null;id:string;employee_no:string;full_name:string;designation:string|null;department:string|null;reports_to_text:string|null;location:string|null;record_status:string|null;source_note:string|null;leaving_date:string|null;employment_state:'active'|'inactive'}
+type DirectoryRow={position:PositionOption;employee?:never}|{position?:never;employee:Employee}
 type Detail={payroll_sep_2026:Record<string,string>;profile:Record<string,string>}
 const editableFields=['full_name','location','source_note'] as const
 type Credentials={employee_no:string;full_name:string;username:string;initial_password:string}
@@ -34,6 +35,8 @@ export default function Directory({email}:{email:string}) {
  const [subDepartmentRegister,setSubDepartmentRegister]=useState<SubDepartmentOption[]>([])
  const [organisationDepartmentRegister,setOrganisationDepartmentRegister]=useState<OrganisationDepartmentOption[]>([])
  const [positions,setPositions]=useState<PositionOption[]>([])
+ const [vacancyLoad,setVacancyLoad]=useState<'loading'|'ready'|'error'>('loading')
+ const [directoryReady,setDirectoryReady]=useState(false)
  const [positionId,setPositionId]=useState('')
  const [positionSearch,setPositionSearch]=useState('')
  const [departmentFilter,setDepartmentFilter]=useState('')
@@ -42,7 +45,7 @@ export default function Directory({email}:{email:string}) {
  const [positionListReady,setPositionListReady]=useState(false)
  const [action,setAction]=useState<{type:'deactivate'|'reactivate'|'delete';row:Employee}|null>(null),[reason,setReason]=useState(''),[confirm,setConfirm]=useState(''),[leavingDate,setLeavingDate]=useState('')
  const [hierarchy,setHierarchy]=useState(new Map<string,Hierarchy>())
- async function refresh(){setLoading(true);const [directory,lines,subs,orgs]=await Promise.all([browserDb().from('employees').select('id,position_id,department_id,designation_id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,employment_state,leaving_date,employee_details(manager_no:profile->>line_manager_employee_no,email:profile->>email,personal_email:profile->>personal_email)').order('employee_no',{ascending:true}).limit(2000),browserDb().rpc('hr_reporting_directory').order('employee_id').limit(2000),browserDb().from('departments').select('id,name,parent_department_id').order('id'),browserDb().from('organisation_departments').select('id,name').order('id')]);const {data,error}=directory;setSubDepartmentRegister((subs.data??[]) as SubDepartmentOption[]);setOrganisationDepartmentRegister((orgs.data??[]) as OrganisationDepartmentOption[]);setHierarchy(new Map(((lines.data??[]) as Hierarchy[]).map(line=>[line.employee_id,line])));setRows((data??[]) as unknown as Employee[]);setError(error?.message??lines.error?.message??subs.error?.message??orgs.error?.message??'');setLoading(false)}
+ async function refresh(){setLoading(true);const [directory,lines,subs,orgs]=await Promise.all([browserDb().from('employees').select('id,position_id,department_id,designation_id,employee_no,full_name,designation,department,reports_to_text,location,record_status,source_note,employment_state,leaving_date,employee_details(manager_no:profile->>line_manager_employee_no,email:profile->>email,personal_email:profile->>personal_email)').order('employee_no',{ascending:true}).limit(2000),browserDb().rpc('hr_reporting_directory').order('employee_id').limit(2000),browserDb().from('departments').select('id,name,parent_department_id').order('id'),browserDb().from('organisation_departments').select('id,name').order('id')]);const {data,error}=directory;setDirectoryReady(!error);setSubDepartmentRegister((subs.data??[]) as SubDepartmentOption[]);setOrganisationDepartmentRegister((orgs.data??[]) as OrganisationDepartmentOption[]);setHierarchy(new Map(((lines.data??[]) as Hierarchy[]).map(line=>[line.employee_id,line])));setRows((data??[]) as unknown as Employee[]);setError(error?.message??lines.error?.message??subs.error?.message??orgs.error?.message??'');setLoading(false)}
  useEffect(()=>{void refresh();void loadDesignations()},[])
  async function refreshAccounts(){const {data}=await browserDb().from('employee_accounts').select('employee_id,username');setAccounts(Object.fromEntries((data??[]).map(a=>[a.employee_id,a.username])))}
  useEffect(()=>{void refreshAccounts()},[rows])
@@ -66,9 +69,51 @@ export default function Directory({email}:{email:string}) {
  }
  function reportingDesignation(row:Employee){return reportingLabel(hierarchy.get(row.id))}
  function subDepartmentName(row:Employee){return subDepartmentRegister.find(item=>item.id===row.department_id)?.name??hierarchy.get(row.id)?.department??''}
- function departmentName(row:Employee){const sub=subDepartmentRegister.find(item=>item.id===row.department_id);return organisationDepartmentRegister.find(item=>item.id===sub?.parent_department_id)?.name??''}
+ function departmentForSubDepartment(id:number|null){const sub=subDepartmentRegister.find(item=>item.id===id);return organisationDepartmentRegister.find(item=>item.id===sub?.parent_department_id)?.name??''}
+ function departmentName(row:Employee){return departmentForSubDepartment(row.department_id)}
  const directorySort=useTableSort('employee_no')
- const matches=useMemo(()=>rows.filter(x=>(filter==='all'||x.employment_state===filter)&&[x.employee_no,x.full_name,x.designation,x.department,x.location].some(v=>(v??'').toLowerCase().includes(q.toLowerCase()))),[rows,q,filter])
+ const assignedPositions=new Set(rows.map(row=>row.position_id))
+ const activeOccupants=new Map(rows.filter(row=>row.employment_state==='active').map(row=>[row.position_id,row.full_name]))
+ const positionsById=new Map(positions.map(position=>[position.id,position]))
+ const vacancies=directoryReady&&vacancyLoad==='ready'?positions.filter(position=>!assignedPositions.has(position.id)):[]
+ const directoryRows:DirectoryRow[]=[...rows.map(employee=>({employee})),...vacancies.map(position=>({position}))]
+ function vacancyDetails(position:PositionOption){
+  const parent=position.reports_to_position_id==null?undefined:positionsById.get(position.reports_to_position_id)
+  return {
+   code:position.position_code??`P${position.id}`,
+   department:departmentForSubDepartment(position.department_id),
+   subDepartment:subDepartmentRegister.find(item=>item.id===position.department_id)?.name??'',
+   parentTitle:parent?.title??'',
+   parentOccupant:parent?activeOccupants.get(parent.id):undefined,
+  }
+ }
+ const search=q.trim().toLowerCase()
+ const matches=directoryRows.filter(({employee,position})=>{
+  if(employee){
+   return (filter==='all'||employee.employment_state===filter)
+    &&[employee.employee_no,employee.full_name,employee.designation,employee.department,employee.location].some(value=>(value??'').toLowerCase().includes(search))
+  }
+  if(filter!=='all'&&filter!=='vacant')return false
+  const detail=vacancyDetails(position)
+  return [detail.code,position.title,detail.department,detail.subDepartment,position.location].some(value=>(value??'').toLowerCase().includes(search))
+ })
+ function directorySortValue({employee,position}:DirectoryRow,column:string){
+  if(employee){
+   if(column==='reports_to_designation')return reportingDesignation(employee)
+   if(column==='organisation_department')return departmentName(employee)
+   if(column==='department')return subDepartmentName(employee)
+   return employee[column as Exclude<keyof Employee,'employee_details'>]
+  }
+  const detail=vacancyDetails(position)
+  switch(column){
+   case 'designation': return position.title
+   case 'organisation_department': return detail.department
+   case 'department': return detail.subDepartment
+   case 'reports_to_designation': return detail.parentTitle
+   case 'employment_state': return 'vacant'
+   default: return null
+  }
+ }
  const activeRows=rows.filter(row=>row.employment_state==='active')
  const noEmailIds=useMemo(()=>new Set(emailRecipients(rows,rows.map(row=>({employee_id:row.id,profile:row.employee_details??null})))
   .filter(recipient=>!recipient.email).map(recipient=>recipient.id)),[rows])
@@ -86,10 +131,11 @@ export default function Directory({email}:{email:string}) {
    db.from('positions').select('id,position_code,department_id,designation_id,title,location,reports_to_position_id').order('title').order('id'),
    db.from('designations').select('id,title').order('id'),
   ])
+  if(!seats.error)setPositions((seats.data??[]) as PositionOption[])
+  setVacancyLoad(seats.error?'error':'ready')
   if(options.error||!options.data||seats.error||roles.error){setError('Could not load the profile dropdown lists.');return}
   setProfileOptions(options.data as ProfileOptions)
   setDesignationOptions((roles.data??[]) as DesignationOption[])
-  setPositions((seats.data??[]) as PositionOption[])
   setPositionListReady(true)
  }
  const chosenPosition=positions.find(position=>String(position.id)===positionId)
@@ -190,7 +236,13 @@ export default function Directory({email}:{email:string}) {
     <tbody>{selectedMetric.rows.map(row=><tr key={row.id}><td>{row.full_name}</td><td className="mono">{row.employee_no}</td></tr>)}</tbody>
    </table>}
  </dialog>
- <section className="panel"><div className="bar"><input aria-label="Search employees" placeholder="Search by name, ID, position, sub-department." value={q} onChange={e=>setQ(e.target.value)}/><select aria-label="Employment status" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select><button onClick={()=>void edit(null)}>+ Add employee</button></div>{error&&<p className="error" role="alert">{error}</p>}{notice&&<p role="status" className="notice">{notice}</p>}{check&&<p className="error" role="alert">{check}</p>}{loading?<p>Loading employees.</p>:<><p className="muted">Showing {matches.length} of {rows.length} records</p><div className="tablewrap"><table><thead><tr>{directorySort.heading('employee_no', 'Employee ID')}{directorySort.heading('full_name', 'Name')}{directorySort.heading('designation', 'Position')}{directorySort.heading('organisation_department', 'Dept.')}{directorySort.heading('department', 'Sub-dept.')}{directorySort.heading('reports_to_designation', 'Reports To (Position)')}{directorySort.heading('employment_state', 'Status')}{directorySort.heading('leaving_date', 'Leaving date')}<th>Actions</th></tr></thead><tbody>{directorySort.sortRows(matches,(row,column)=>column==='reports_to_designation'?reportingDesignation(row):column==='organisation_department'?departmentName(row):column==='department'?subDepartmentName(row):row[column as Exclude<keyof Employee,'employee_details'>]).map(x=><tr key={x.id}><td className="mono">{x.employee_no}</td><td><strong>{x.full_name}</strong></td><td>{x.designation||'-'}</td><td>{departmentName(x)||'-'}</td><td>{subDepartmentName(x)||'-'}</td><td>{reportingDesignation(x)}<div className="muted">{occupantLabel(hierarchy.get(x.id))}</div></td><td><span className={'status '+x.employment_state}>{x.employment_state}</span></td><td>{displayShortDate(x.leaving_date)||"-"}</td><td className="actions"><button className="link inactive-disabled" disabled={x.employment_state==='inactive'} title={x.employment_state==='inactive'?'Reactivate employee before editing':undefined} onClick={()=>void edit(x)}>Edit</button>{accounts[x.id]?<span className="muted">Login ready</span>:<button className="link inactive-disabled" disabled={busy||x.employment_state==='inactive'} title={x.employment_state==='inactive'?'Reactivate employee before creating a login':undefined} onClick={()=>void createLogin(x.id)}>Create login</button>}<button className="link" onClick={()=>{setAction({type:x.employment_state==='inactive'?'reactivate':'deactivate',row:x});setReason('');setConfirm('');setLeavingDate('')}}>{x.employment_state==='inactive'?'Reactivate':'Deactivate'}</button><button className="link danger" onClick={()=>{setAction({type:'delete',row:x});setReason('');setConfirm('');setLeavingDate('')}}>Delete</button></td></tr>)}</tbody></table></div></>}</section>
+ <section className="panel"><div className="bar"><input aria-label="Search employees" placeholder="Search by name, ID, position, sub-department." value={q} onChange={e=>setQ(e.target.value)}/><select aria-label="Employment status" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="vacant">Vacant</option></select><button onClick={()=>void edit(null)}>+ Add employee</button></div>{error&&<p className="error" role="alert">{error}</p>}{notice&&<p role="status" className="notice">{notice}</p>}{check&&<p className="error" role="alert">{check}</p>}{loading||((filter==='all'||filter==='vacant')&&vacancyLoad==='loading')?<p>Loading directory.</p>:<>{vacancyLoad==='error'&&(filter==='all'||filter==='vacant')&&<p className="error" role="alert">Could not load vacant positions.</p>}<p className="muted">Showing {matches.length} of {directoryRows.length} records</p><div className="tablewrap"><table><thead><tr>{directorySort.heading('employee_no', 'Employee ID')}{directorySort.heading('full_name', 'Name')}{directorySort.heading('designation', 'Position')}{directorySort.heading('organisation_department', 'Dept.')}{directorySort.heading('department', 'Sub-dept.')}{directorySort.heading('reports_to_designation', 'Reports To (Position)')}{directorySort.heading('employment_state', 'Status')}{directorySort.heading('leaving_date', 'Leaving date')}<th>Actions</th></tr></thead><tbody>{directorySort.sortRows(matches,directorySortValue).map(({employee:x,position})=>{
+   if(position){
+    const detail=vacancyDetails(position)
+    return <tr key={'vacant-'+position.id}><td>–</td><td>–</td><td><strong>{position.title}</strong><div className="muted mono">{detail.code}</div></td><td>{detail.department||'–'}</td><td>{detail.subDepartment||'–'}</td><td>{detail.parentTitle||'–'}{detail.parentOccupant&&<div className="muted">{detail.parentOccupant}</div>}</td><td><span className="status vacant">Vacant</span></td><td>–</td><td>–</td></tr>
+   }
+   return <tr key={x.id}><td className="mono">{x.employee_no}</td><td><strong>{x.full_name}</strong></td><td>{x.designation||'-'}</td><td>{departmentName(x)||'-'}</td><td>{subDepartmentName(x)||'-'}</td><td>{reportingDesignation(x)}<div className="muted">{occupantLabel(hierarchy.get(x.id))}</div></td><td><span className={'status '+x.employment_state}>{x.employment_state}</span></td><td>{displayShortDate(x.leaving_date)||"-"}</td><td className="actions"><button className="link inactive-disabled" disabled={x.employment_state==='inactive'} title={x.employment_state==='inactive'?'Reactivate employee before editing':undefined} onClick={()=>void edit(x)}>Edit</button>{accounts[x.id]?<span className="muted">Login ready</span>:<button className="link inactive-disabled" disabled={busy||x.employment_state==='inactive'} title={x.employment_state==='inactive'?'Reactivate employee before creating a login':undefined} onClick={()=>void createLogin(x.id)}>Create login</button>}<button className="link" onClick={()=>{setAction({type:x.employment_state==='inactive'?'reactivate':'deactivate',row:x});setReason('');setConfirm('');setLeavingDate('')}}>{x.employment_state==='inactive'?'Reactivate':'Deactivate'}</button><button className="link danger" onClick={()=>{setAction({type:'delete',row:x});setReason('');setConfirm('');setLeavingDate('')}}>Delete</button></td></tr>
+  })}</tbody></table></div></>}</section>
  {(selected||adding)&&<div className="overlay"><div className="dialog wide" role="dialog" aria-modal="true" aria-label={selected?'Edit employee':'Add employee'}><div className="bar"><h2>{selected?'Employee Profile':'New employee'}</h2><button className="secondary" type="button" onClick={close}>Close</button></div>{selected?<p className="mono">{selected.employee_no} · {selected.employment_state}</p>:<p className="muted">A new employee number is assigned on save.</p>}
  {profileEmailDiffers&&<p className="error" role="alert">The sign-in email on file is <strong>{signInEmail}</strong>. It differs from the work and personal emails shown in this profile. Review the account in <a href="/credentials">Credentials</a>.</p>}
  {tab==='core'&&<label><input type="checkbox" checked={detail.profile.shared_work_mailbox==='true'} disabled={busy||!detailsReady} onChange={event=>editField('shared_work_mailbox',String(event.target.checked),'profile')}/> Shared work mailbox</label>}
