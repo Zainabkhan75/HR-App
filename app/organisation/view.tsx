@@ -14,7 +14,6 @@ export default function Organisation(){
  const [positionDesignation,setPositionDesignation]=useState('')
  const [positionTitle,setPositionTitle]=useState('')
  const [parentPosition,setParentPosition]=useState('')
- const [positionLocation,setPositionLocation]=useState('')
  const [departments,setDepartments]=useState<Department[]>([])
  const [designations,setDesignations]=useState<Designation[]>([])
  const [assignments,setAssignments]=useState<Assignment[]>([])
@@ -83,10 +82,9 @@ export default function Organisation(){
     p_department_id:Number(positionDepartment),
     p_designation_id:Number(positionDesignation),
     p_reports_to_position_id:Number(parentPosition),
-    p_location:positionLocation.trim()||null,
    })
    if(saveError)throw Error(saveError.message)
-   setPositionTitle('');setPositionLocation('');setParentPosition('')
+   setPositionTitle('');setParentPosition('')
    setNotice(`Position ${data} created.`)
    await load().catch(()=>setError('The position was saved. Refresh to reload the organisation records.'))
   }catch(failure){setError(failure instanceof Error?failure.message:'Could not add the position.')}
@@ -123,7 +121,6 @@ export default function Organisation(){
       {[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}
      </option>)}
     </select></label>
-    <label>Location (optional)<input value={positionLocation} disabled={busy} onChange={event=>setPositionLocation(event.target.value)}/></label>
     <button disabled={busy||!positionTitle.trim()||!positionDepartment||!positionDesignation||!parentPosition}>Add Position</button>
    </form>
   </section>
