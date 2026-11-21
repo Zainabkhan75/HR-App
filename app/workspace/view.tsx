@@ -149,7 +149,7 @@ export default function Workspace({initialData,initialSection,focusedRequest,foc
        {employee&&<>
         <label>Employee Name<input readOnly value={employee.full_name}/></label>
         <label>Employee ID<input readOnly value={employee.employee_no}/></label>
-        <label>Department<input readOnly value={employee.department??''}/></label>
+        <label>Sub-department<input readOnly value={employee.department??''}/></label>
         <label>Designation<input readOnly value={employee.designation??''}/></label>
        </>}
        <label>On Probation?<select name="on_probation" defaultValue="" required disabled={busy}><option value="" disabled>Choose an item</option><option value="yes">Yes</option><option value="no">No</option><option value="unsure">Unsure</option></select></label>
