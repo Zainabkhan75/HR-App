@@ -228,7 +228,7 @@ export function planUpload(rows:UploadRow[],snapshot:Snapshot,fields:Field[]):Pl
  const normalize=(value:unknown)=>cellText(value).toLowerCase().replace(/[^a-z0-9]/g,'')
  const claimed:UploadRow[]=[]
  for(const row of rows.filter(r=>r.action==='NEW')){
-  if(!row.core.full_name?.trim()||(!row.core.position_id?.trim()&&(!row.core.department?.trim()||!row.core.designation?.trim())))throw Error(`NEW ${row.name}: name and Position ID are required`)
+  if(!row.core.full_name?.trim()||!row.core.position_id?.trim())throw Error(`NEW ${row.name}: name and Position ID are required`)
   if(row.core.position_id?.trim()&&!/^\\d+$/.test(row.core.position_id.trim()))throw Error(`NEW ${row.name}: Position ID must be numeric`)
   const cnic=normalize(row.profile.cnic_passport),emails=[row.profile.email,row.profile.personal_email].map(normalize).filter(Boolean)
   const duplicate=(name:string,p:Record<string,unknown>)=>normalize(name)===normalize(row.name)||(!!cnic&&normalize(p.cnic_passport)===cnic)||emails.some(x=>[p.email,p.personal_email].map(normalize).includes(x))
