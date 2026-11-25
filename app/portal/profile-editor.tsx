@@ -58,7 +58,7 @@ export default function ProfileEditor({active,initialProfile,organisation,organi
   ['Reports To (Position)',organisation?.reports_to_position_code&&organisation.reports_to_position_title?`${organisation.reports_to_position_code} | ${organisation.reports_to_position_title}`:null],
   ['Reports To Position Holder',organisation?.reports_to_employee_name??null],
   ['Current reporting contact',organisation?.effective_manager_position_code&&organisation.effective_manager_position_title&&organisation.effective_manager_name
-   ?`${organisation.effective_manager_position_code} | ${organisation.effective_manager_position_title} � ${organisation.effective_manager_name}${organisation.reporting_fallback_used?' (vacancy fallback)':''}`
+   ?`${organisation.effective_manager_position_code} | ${organisation.effective_manager_position_title}  |  ${organisation.effective_manager_name}${organisation.reporting_fallback_used?' (vacancy fallback)':''}`
    :organisation?.reports_to_status==='top_position'?'Top position':null],
   ['Reporting status',organisation?.reports_to_status==='top_position'?'Top position':organisation?.reports_to_status==='unassigned'?'No reporting position assigned':organisation?.reports_to_status==='vacant'?'Reporting position vacant':organisation?.reports_to_status==='occupied'?'Manager assigned':null],
  ]
@@ -119,7 +119,7 @@ export default function ProfileEditor({active,initialProfile,organisation,organi
   finally{setBusy(false)}
  }
  return <section className="panel" hidden={!active}>
-  <h2>My profile</h2><p>You can update the details below directly.</p><p className="mono">Employee ID: {base.employee.employee_no} (fixed) � Employment Status: {base.employee.employment_state}</p>
+  <h2>My profile</h2><p>You can update the details below directly.</p><p className="mono">Employee ID: {base.employee.employee_no} (fixed)  |  Employment Status: {base.employee.employment_state}</p>
   {error?<p role="alert" className="error">{error}</p>:null}{notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div><p>Reloading clears unsaved profile edits.</p><button type="button" disabled={busy} onClick={()=>void reload()}>Reload latest profile</button></div>:null}
   {optionsError?<p role="alert" className="error">{optionsError}</p>:null}
