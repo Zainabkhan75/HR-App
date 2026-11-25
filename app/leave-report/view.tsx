@@ -1,4 +1,5 @@
 'use client'
+import SearchableSelect from '../searchable-select'
 import {useMemo, useState} from 'react'
 import DateInput from '../date-input'
 import {useTableSort} from '../sortable-table'
@@ -91,8 +92,8 @@ export default function LeaveReportView({initialReport, today}: {initialReport: 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="bar">
         <label>Search ID or name<input value={filter.search} onChange={event => setFilter(old => ({...old, search: event.target.value}))} placeholder="Employee ID or name"/></label>
-        <label>Sub-department<select value={filter.department} onChange={event => setFilter(old => ({...old, department: event.target.value}))}><option value="">All sub-departments</option>{departments.map(item => <option key={item}>{item}</option>)}</select></label>
-        <label>Designation<select value={filter.designation} onChange={event => setFilter(old => ({...old, designation: event.target.value}))}><option value="">All designations</option>{designations.map(item => <option key={item}>{item}</option>)}</select></label>
+        <label>Sub-department<SearchableSelect value={filter.department} onChange={event => setFilter(old => ({...old, department: event.target.value}))}><option value="">All sub-departments</option>{departments.map(item => <option key={item}>{item}</option>)}</SearchableSelect></label>
+        <label>Designation<SearchableSelect value={filter.designation} onChange={event => setFilter(old => ({...old, designation: event.target.value}))}><option value="">All designations</option>{designations.map(item => <option key={item}>{item}</option>)}</SearchableSelect></label>
         <label>Leave type<select value={filter.leaveType} onChange={event => setFilter(old => ({...old, leaveType: event.target.value}))}><option value="">All leave types</option>{leaveTypeOptions.map(item => <option key={item} value={item}>{leaveTypeLabel(item)}</option>)}</select></label>
       </div>
       <label>Employees (leave empty for all; hold Ctrl or Cmd to choose several)

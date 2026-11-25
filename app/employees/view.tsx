@@ -1,4 +1,5 @@
 'use client'
+import SearchableSelect from '../searchable-select'
 import DateInput from '../date-input'
 import FamilyEditor from '../portal/family-editor'
 import {confirmationDate,paymentMethods,employmentChoice,isDropdown,qualificationLevels,selectChoices} from '../../lib/profile-inputs'
@@ -128,7 +129,7 @@ export default function Directory({email}:{email:string}) {
   const db=browserDb()
   const [options,seats,roles]=await Promise.all([
    db.rpc('my_profile_options'),
-   db.from('positions').select('id,position_code,department_id,designation_id,title,location,reports_to_position_id').order('title').order('id'),
+   db.from('positions').select('id,position_code,department_id,designation_id,title,location,reports_to_position_id').order('id'),
    db.from('designations').select('id,title').order('id'),
   ])
   if(!seats.error)setPositions((seats.data??[]) as PositionOption[])
@@ -138,6 +139,8 @@ export default function Directory({email}:{email:string}) {
   setDesignationOptions((roles.data??[]) as DesignationOption[])
   setPositionListReady(true)
  }
+ const selectedSubDepartment=subDepartmentRegister.find(item=>String(item.id)===departmentFilter)
+ const mappedDepartment=organisationDepartmentRegister.find(item=>item.id===selectedSubDepartment?.parent_department_id)
  const chosenPosition=positions.find(position=>String(position.id)===positionId)
  const parentPosition=positions.find(position=>position.id===chosenPosition?.reports_to_position_id)
  const parentOccupant=rows.find(row=>row.position_id===parentPosition?.id&&row.employment_state==='active'&&row.id!==selected?.id)
@@ -259,10 +262,11 @@ export default function Directory({email}:{email:string}) {
  })}
  </fieldset></>}{tab==='core'?<>
   <label>Full Name<input required value={values.full_name??''} onChange={e=>setValues(v=>({...v,full_name:e.target.value}))}/></label>
-  <label>Sub-department<select value={departmentFilter} disabled={busy||!positionListReady} onChange={e=>{setDepartmentFilter(e.target.value);setPositionId('');closePositionPicker()}}>
+  <label>Sub-department<SearchableSelect value={departmentFilter} disabled={busy||!positionListReady} onChange={e=>{setDepartmentFilter(e.target.value);setPositionId('');closePositionPicker()}}>
    <option value="">Select sub-department</option>
    {departmentOptions.map(department=><option key={department.id} value={department.id}>{department.name}</option>)}
-  </select></label>
+  </SearchableSelect></label>
+  <label>Department<input readOnly value={mappedDepartment?[mappedDepartment.id,mappedDepartment.name].join(" | "):""}/></label>
   <div style={{position:'relative',minWidth:0}}>
    <label>Position
     <input role="combobox" aria-autocomplete="list" aria-expanded={positionPickerOpen}

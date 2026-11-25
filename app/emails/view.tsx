@@ -1,4 +1,5 @@
 'use client'
+import SearchableSelect from '../searchable-select'
 import {useTableSort} from '../sortable-table'
 import {useRef,useState} from 'react'
 import {EMAIL_FROM,LOGIN_URL,MAX_ATTACHMENT_BYTES,emailPayload} from '../../lib/employee-emails'
@@ -80,7 +81,7 @@ export default function Emails({recipients,counts,adminEmail,configured,history,
  }}/></label>{attachment&&<button type="button" className="secondary" disabled={locked} onClick={()=>{change();setAttachment(null);if(attachmentInput.current)attachmentInput.current.value=""}}>Remove attachment</button>}<p className="muted">One file up to 2 MiB for one recipient. The attachment is included in the email.</p><p className="muted">Optional placeholders: {'{{name}}'}, {'{{employee_id}}'}, {'{{login_url}}'}. Login URL: {LOGIN_URL}. Keep passwords and reset codes out of the message text.</p><div className="bar"><button disabled={locked||!selected.length} onClick={()=>void prepare(false)}>Preview selected employees</button><button className="secondary" disabled={locked||!adminEmail} onClick={()=>void prepare(true)}>Prepare test to me</button></div></section>
  {error&&<p className="error" role="alert">{error}</p>}
  {campaign&&<section className="panel"><h2>3. Review and send</h2><p role="status"><strong>{statusName(campaign.status)}</strong> · {campaign.recipients.length} recipient{campaign.recipients.length!==1?'s':''}</p>{campaign.error_message&&<p className="error">{campaign.error_message}</p>}<p>Subject: <strong>{campaign.subject}</strong><br/>From: {EMAIL_FROM}<br/>Reply to: {campaign.reply_to}</p>
- <label>Preview recipient<select value={previewIndex} onChange={e=>setPreviewIndex(Number(e.target.value))}>{campaign.recipients.map((r,i)=><option key={r.id} value={i}>{r.employee_no} · {r.name} · {r.email}</option>)}</select></label>
+ <label>Preview recipient<SearchableSelect value={previewIndex} onChange={e=>setPreviewIndex(Number(e.target.value))}>{campaign.recipients.map((r,i)=><option key={r.id} value={i}>{r.employee_no} · {r.name} · {r.email}</option>)}</SearchableSelect></label>
  {campaign.recipients[previewIndex]?.attachmentName&&<p>Attachment: {campaign.recipients[previewIndex].attachmentName}</p>}
  <pre style={{whiteSpace:'pre-wrap',font:'inherit',background:'#f5f7fa',padding:20}}>{sample?.text}</pre>
  {campaign.status==='uncertain'&&<p className="notice">The outcome is unconfirmed. Retry this same preview so Resend can prevent duplicate sending. After 23 hours, check Resend before taking further action.</p>}
