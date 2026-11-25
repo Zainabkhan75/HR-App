@@ -42,11 +42,11 @@ export default function Organisation(){
    db.from('departments').select('id,name,parent_department_id').order('name'),
    db.from('designations').select('id,title,department_id').order('title'),
    db.from('employees').select('position_id').eq('employment_state','active').limit(2000),
-   db.from('positions').select('id,position_code,title,location,department_id,designation_id,reports_to_position_id').order('title').order('id'),
+   db.from('positions').select('id,position_code,title,location,department_id,designation_id,reports_to_position_id').order('id'),
   ])
   if(orgs.error||subs.error||roles.error||people.error||seats.error)throw Error('Could not load organisation records.')
   setPositions(seats.data)
-  setOrganisationDepartments(orgs.data);setSubDepartments(subs.data);setDesignations(roles.data);setAssignments(people.data)
+  setOrganisationDepartments([...orgs.data].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})));setSubDepartments(subs.data);setDesignations(roles.data);setAssignments(people.data)
  }
  useEffect(()=>{void load().catch(failure=>setError(failure.message))},[])
 
@@ -133,6 +133,7 @@ export default function Organisation(){
  }
  const designationCategories=designations.filter(role=>role.department_id===null)
  const currentLegacyDesignation=designations.find(role=>String(role.id)===editPositionDesignation&&role.department_id!==null)
+ const editDesignationOptions=[...designationCategories,...(currentLegacyDesignation?[currentLegacyDesignation]:[])].sort((a,b)=>a.id-b.id)
  const counts=new Map<number,number>()
  const designationByPosition=new Map(positions.map(position=>[position.id,position.designation_id]))
  for(const assignment of assignments){
@@ -158,7 +159,7 @@ export default function Organisation(){
    <form className="bar" onSubmit={event=>{event.preventDefault();void savePositionEdit()}}>
     <label>Position<select required value={editPositionId} disabled={busy} onChange={event=>{const value=event.target.value;setEditPositionId(value);const position=positions.find(item=>String(item.id)===value);if(position){setEditPositionTitle(position.title);setEditPositionDepartment(position.department_id==null?'':String(position.department_id));setEditPositionDesignation(position.designation_id==null?'':String(position.designation_id));setEditParentPosition(position.reports_to_position_id==null?'':String(position.reports_to_position_id))}}}><option value="">Select position</option>{positions.map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title].filter(Boolean).join(' · ')}</option>)}</select></label>
     <label>Sub-department<select required value={editPositionDepartment} disabled={busy} onChange={event=>setEditPositionDepartment(event.target.value)}><option value="">Select sub-department</option>{subDepartments.map(sub=><option key={sub.id} value={sub.id}>{sub.name} · {organisationDepartments.find(org=>org.id===sub.parent_department_id)?.name??'No Department'}</option>)}</select></label>
-    <label>Designation<select required value={editPositionDesignation} disabled={busy} onChange={event=>setEditPositionDesignation(event.target.value)}><option value="">Select designation</option>{currentLegacyDesignation&&<option disabled value={currentLegacyDesignation.id}>{currentLegacyDesignation.id} · {currentLegacyDesignation.title} (existing legacy assignment)</option>}{designationCategories.map(role=><option key={role.id} value={role.id}>{role.id} · {role.title}</option>)}</select></label>
+    <label>Designation<select required value={editPositionDesignation} disabled={busy} onChange={event=>setEditPositionDesignation(event.target.value)}><option value="">Select designation</option>{editDesignationOptions.map(role=><option key={role.id} value={role.id} disabled={role.department_id!==null}>{role.id} · {role.title}{role.department_id!==null?" (existing legacy assignment)":""}</option>)}</select></label>
     <label>Position Title<input required value={editPositionTitle} disabled={busy} onChange={event=>setEditPositionTitle(event.target.value)}/></label>
     <label>Reports To<select value={editParentPosition} disabled={busy} onChange={event=>setEditParentPosition(event.target.value)}><option value="">No parent position</option>{positions.filter(position=>String(position.id)!==editPositionId).map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}</option>)}</select></label>
     <button disabled={busy||!editPositionId||!editPositionTitle.trim()||!editPositionDepartment||!editPositionDesignation}>Save Position</button>
