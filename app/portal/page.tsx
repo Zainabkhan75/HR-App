@@ -30,8 +30,8 @@ export default async function PortalPage({searchParams}:{searchParams:Promise<{s
 
  const {data:organisation, error:organisationError}=await db.rpc('my_employee_organisation')
 
- const isManager=roles?.some(r=>r.role==='manager')??false
- const {data:team,error:teamError}=isManager?await db.rpc('my_team_summary'):{data:[],error:null}
+ const {data:team,error:teamError}=await db.rpc('my_direct_team_positions')
+ const hasTeam=(team?.length??0)>0
  const date=new Intl.DateTimeFormat('en',{year:'numeric',month:'numeric',timeZone:'Asia/Karachi'}).formatToParts(new Date())
  const year=Number(date.find(part=>part.type==='year')?.value)
  const month=Number(date.find(part=>part.type==='month')?.value)
@@ -41,6 +41,6 @@ export default async function PortalPage({searchParams}:{searchParams:Promise<{s
   db.rpc('leave_workspace',{p_year:fiscalYear}),
  ])
  const leaveData=workspace?.employee_id&&workspace.pilot_applicant===true?employeeLeaveData(workspace):undefined
- return <Portal leaveData={leaveData} msgboxData={msgbox??undefined} showMsgBox={showMsgBox} focusedMessage={message} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} organisation={(organisation as EmployeeOrganisation|null)??null} organisationUnavailable={!!organisationError} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
+ return <Portal leaveData={leaveData} msgboxData={msgbox??undefined} showMsgBox={showMsgBox} focusedMessage={message} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} organisation={(organisation as EmployeeOrganisation|null)??null} organisationUnavailable={!!organisationError} team={team??[]} hasTeam={hasTeam} teamUnavailable={!!teamError}/>
 }
 
