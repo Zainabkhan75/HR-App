@@ -1,29 +1,22 @@
 'use client'
-import {reportingLabel,occupantLabel} from '../../lib/ess-profile'
 import {useEffect,useState} from 'react'
 import type {FormEvent} from 'react'
 import {browserDb} from '../../lib/supabase'
 import {editableProfileSections,profileDraft,profilePatch} from '../../lib/ess-profile'
 import DateInput from '../date-input'
-import DesignationSelect from '../designation-select'
 import {displayShortDate,isIsoDate,isProfileDateField} from '../../lib/date-input'
-import type {EmployeeProfile} from '../../lib/ess-profile'
-import {confirmationDate,paymentMethods,isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels,designationTitles} from '../../lib/profile-inputs'
+import type {EmployeeOrganisation,EmployeeProfile} from '../../lib/ess-profile'
+import {confirmationDate,paymentMethods,isDropdown,employmentChoice,validProbation,selectChoices,qualificationLevels} from '../../lib/profile-inputs'
 import type {ProfileOptions} from '../../lib/profile-inputs'
 
 const dateError='Enter a valid date in DD/MM/YY or DD/MM/YYYY.'
-const managerError='Select an active line manager who matches the designation chosen under Reports To.'
 const probationError='Enter a whole number from 0 to 6.'
 const nameError='Enter your full name before saving.'
 const emailError='Enter a valid work email address, such as name@company.com.'
 const serverFieldErrors:Record<string,[string,string]>={
  'Full name is required':['full_name',nameError],
  'Enter a valid work email address':['email',emailError],
- 'Choose an active line manager with the selected designation':['line_manager_employee_no',managerError],
  'Choose a valid highest qualification level':['highest_qualification_level','Choose a qualification from the list.'],
- 'Choose an approved designation':['designation','Choose an approved designation from the list.'],
- 'Choose an approved designation. Ask HR to add a missing designation.':['designation','Choose an approved designation from the list.'],
- 'Choose a designation assigned to this department':['designation','Choose a designation for the selected department.'],
 }
 
 function profileSaveFieldError(error:{message:string;code:string;details?:string|null}):[string,string]|undefined{
@@ -35,7 +28,7 @@ function profileSaveFieldError(error:{message:string;code:string;details?:string
  }
  if(error.code==='22023'||error.code==='42501')return Object.hasOwn(serverFieldErrors,error.message)?serverFieldErrors[error.message]:undefined
 }
-export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChange,onBusyChange}:{active:boolean;initialProfile:EmployeeProfile;onSaved:(value:EmployeeProfile)=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
+export default function ProfileEditor({active,initialProfile,organisation,organisationUnavailable=false,onSaved,onDirtyChange,onBusyChange}:{active:boolean;initialProfile:EmployeeProfile;organisation:EmployeeOrganisation|null;organisationUnavailable?:boolean;onSaved:(value:EmployeeProfile)=>void;onDirtyChange:(value:boolean)=>void;onBusyChange:(value:boolean)=>void}){
  const [base,setBase]=useState(initialProfile),[draft,setDraft]=useState(()=>profileDraft(initialProfile))
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[conflict,setConflict]=useState(false)
  const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({})
@@ -52,8 +45,23 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
  useEffect(()=>{void loadOptions()},[])
  const patch=profilePatch(base,draft),dirty=Object.keys(patch).length>0
  const calculatedConfirmationDate=confirmationDate(draft.date_of_joining,draft.probation)
- const managers=(options?.line_managers??[]).filter(manager=>manager.designation===draft.reports_to_text)
- const selectedManager=managers.some(manager=>manager.employee_no===draft.line_manager_employee_no)
+ const organisationFields:[string,string|null][]=[
+  ['Department ID',organisation?.department_code??null],
+  ['Department',organisation?.department??null],
+  ['Sub-department ID',organisation?.subdepartment_code??null],
+  ['Sub-department',organisation?.subdepartment??null],
+  ['Position ID',organisation?.position_code??null],
+  ['Position',organisation?.position_title??null],
+  ['Designation ID',organisation?.designation_code??null],
+  ['Designation',organisation?.designation??null],
+  ['Location',organisation?.location??null],
+  ['Reports To (Position)',organisation?.reports_to_position_code&&organisation.reports_to_position_title?`${organisation.reports_to_position_code} | ${organisation.reports_to_position_title}`:null],
+  ['Reports To Position Holder',organisation?.reports_to_employee_name??null],
+  ['Current reporting contact',organisation?.effective_manager_position_code&&organisation.effective_manager_position_title&&organisation.effective_manager_name
+   ?`${organisation.effective_manager_position_code} | ${organisation.effective_manager_position_title} � ${organisation.effective_manager_name}${organisation.reporting_fallback_used?' (vacancy fallback)':''}`
+   :organisation?.reports_to_status==='top_position'?'Top position':null],
+  ['Reporting status',organisation?.reports_to_status==='top_position'?'Top position':organisation?.reports_to_status==='unassigned'?'No reporting position assigned':organisation?.reports_to_status==='vacant'?'Reporting position vacant':organisation?.reports_to_status==='occupied'?'Manager assigned':null],
+ ]
  useEffect(()=>{if(!dirty){setBase(initialProfile);setDraft(profileDraft(initialProfile))}},[initialProfile,dirty])
  useEffect(()=>{onDirtyChange(dirty)},[dirty,onDirtyChange])
  useEffect(()=>{onBusyChange(busy)},[busy,onBusyChange])
@@ -83,10 +91,6 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   }
   setError('');setNotice('');setFieldErrors({})
   const errors:Record<string,string>={}
-  if((patch.reports_to_text!==undefined||patch.line_manager_employee_no!==undefined)&&
-     ((draft.reports_to_text&&!selectedManager)||(!draft.reports_to_text&&draft.line_manager_employee_no))){
-   errors.line_manager_employee_no=managerError
-  }
   for(const [key,value] of Object.entries(patch)){
    if(isProfileDateField(key)&&value&&!isIsoDate(value))errors[key]=key==='date_of_birth'?'Enter a valid date of birth on or before today. Use DD/MM/YY or DD/MM/YYYY.':dateError
   }
@@ -115,26 +119,31 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
   finally{setBusy(false)}
  }
  return <section className="panel" hidden={!active}>
-  <h2>My profile</h2><p>You can update the details below directly.</p><p className="mono">Employee ID: {base.employee.employee_no} (fixed) · Employment Status: {base.employee.employment_state}</p>
+  <h2>My profile</h2><p>You can update the details below directly.</p><p className="mono">Employee ID: {base.employee.employee_no} (fixed) � Employment Status: {base.employee.employment_state}</p>
   {error?<p role="alert" className="error">{error}</p>:null}{notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div><p>Reloading clears unsaved profile edits.</p><button type="button" disabled={busy} onClick={()=>void reload()}>Reload latest profile</button></div>:null}
   {optionsError?<p role="alert" className="error">{optionsError}</p>:null}
+  <section className="panel" aria-labelledby="portal-organisation-heading">
+   <h3 id="portal-organisation-heading">Organisation and position</h3>
+   {organisationUnavailable?<p role="alert" className="error">Organisation details could not be loaded. Please contact HR.</p>:null}
+   <dl className="profile-grid">{organisationFields.map(([label,value])=><div className="ess-field" key={label}><dt>{label}</dt><dd>{value?.trim()||'Not recorded'}</dd></div>)}</dl>
+  </section>
   <button type="button" className="link" disabled={busy||optionsBusy} onClick={()=>void loadOptions()}>{optionsBusy?'Loading dropdowns...':'Refresh dropdown lists'}</button>
   <form noValidate onSubmit={save} onChange={event=>{
    const key=(event.target as HTMLElement).closest<HTMLElement>('[data-profile-field]')?.dataset.profileField
    if(!key)return
-   setFieldErrors(current=>Object.fromEntries(Object.entries(current).filter(([field])=>field!==key&&!(key==='reports_to_text'&&field==='line_manager_employee_no')&&!(key==='department'&&field==='designation')&&!(key==='employment_type'&&field==='probation'))))
+   setFieldErrors(current=>Object.fromEntries(Object.entries(current).filter(([field])=>field!==key&&!(key==='employment_type'&&field==='probation'))))
   }}>
    {editableProfileSections.map(section=><div key={section.title}><h3>{section.title}</h3><div className="family-fields">{section.fields.map(([key,label])=><label key={key} data-profile-field={key} data-profile-error={fieldErrors[key]?true:undefined} className={key==="permanent_address"?"field-label-exact":undefined}>
     {key==='probation'?'Probation (months)':key==='salary_transfer_method'?'Method of Payment':label}
-    {key==='department'?<label>Sub-department<input readOnly value={base.hierarchy?.department??''}/></label>:['reports_to_text','line_manager_employee_no'].includes(key)?<input readOnly value={key==='reports_to_text'?reportingLabel(base.hierarchy):occupantLabel(base.hierarchy)}/>: 'readOnly' in section?<input readOnly value={draft[key]}/>:key==='offer_date'?<>
+   {'readOnly' in section?<input readOnly value={draft[key]}/>:key==='offer_date'?<>
      <input readOnly value={displayShortDate(calculatedConfirmationDate)} placeholder="Calculated from joining date and probation"/>
      {!calculatedConfirmationDate&&<span className="field-hint">Enter Date of Joining and Probation (months) to calculate this date.</span>}
     </>:key==='salary_transfer_method'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
      <option value="">Select a payment method</option>
      {draft[key]&&!paymentMethods.includes(draft[key])&&<option value={draft[key]} disabled>{draft[key]} (previously recorded)</option>}
      {paymentMethods.map(method=><option key={method} value={method}>{method}</option>)}
-    </select>:key==='designation'?<DesignationSelect titles={options?designationTitles(options,draft.department??''):null} value={draft[key]} disabled={busy} onChange={value=>setDraft(old=>({...old,[key]:value}))}/>:key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
+    </select>:key==='highest_qualification_level'?<select value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}>
      <option value="">Select a qualification level</option>
      {selectChoices(qualificationLevels,draft[key]).map(level=><option key={level} value={level}>{level}</option>)}
     </select>:key==='gender'?<select value={draft[key]||'Male'} disabled={busy} onChange={event=>setDraft(old=>({...old,gender:event.target.value}))}><option>Male</option><option>Female</option></select>:isDropdown(key)?<select value={draft[key]} disabled={busy||!options} onChange={event=>setDraft(old=>key==='employment_type'?employmentChoice(old,event.target.value):({...old,[key]:event.target.value}))}>
@@ -146,8 +155,9 @@ export default function ProfileEditor({active,initialProfile,onSaved,onDirtyChan
     </>:isProfileDateField(key)?<DateInput birthDate={key==='date_of_birth'} value={draft[key]} disabled={busy} onChange={value=>setDraft(old=>({...old,[key]:value}))}/>:<input type={key==='email'?'email':'text'} required={key==='full_name'} maxLength={key==='email'?254:1000} value={draft[key]} disabled={busy} onChange={event=>setDraft(old=>({...old,[key]:event.target.value}))}/>}
     {fieldErrors[key]&&<span className="field-hint" style={{color:'#a12626'}} role="alert">{fieldErrors[key]}</span>}
    </label>)}</div></div>)}
-   <p className="muted">Changing the work email does not change your sign-in email. Editing reporting-line text does not change manager permissions or team access.</p>
+   <p className="muted">Changing the work email does not change your sign-in email. Organisation and reporting details are maintained by HR.</p>
    <div className="ess-form-actions"><button type="submit" disabled={busy||!dirty||conflict}>{busy?'Saving...':'Save profile details'}</button><button type="button" className="secondary" disabled={busy||!dirty} onClick={()=>{setDraft(profileDraft(base));setError('');setFieldErrors({});setNotice('Unsaved profile edits cleared.')}}>Cancel changes</button></div>
   </form>
  </section>
 }
+

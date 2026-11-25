@@ -8,7 +8,7 @@ import Payslip from './payslip'
 import Workspace from '../workspace/view'
 import type {WorkspaceData} from '../../lib/leave'
 import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
-import type {EmployeeProfile,Values} from '../../lib/ess-profile'
+import type {EmployeeOrganisation,EmployeeProfile,Values} from '../../lib/ess-profile'
 import {formatMoneyField} from '../../lib/money'
 
 type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
@@ -20,7 +20,7 @@ function FieldList({fields,values}:{fields:readonly (readonly [string,string])[]
  return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(formatMoneyField(key,values[key]))}</dd></div>)}</dl>
 }
 
-export default function Portal({initialProfile,team,isManager,teamUnavailable=false,isAdmin=false,leaveData,msgboxData,showMsgBox,focusedMessage}:{leaveData?:WorkspaceData;msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
+export default function Portal({initialProfile,organisation,organisationUnavailable=false,team,isManager,teamUnavailable=false,isAdmin=false,leaveData,msgboxData,showMsgBox,focusedMessage}:{leaveData?:WorkspaceData;msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;organisation:EmployeeOrganisation|null;organisationUnavailable?:boolean;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
  const [profile,setProfile]=useState(initialProfile)
  const [tab,setTab]=useState<Tab>(showMsgBox?'msgbox':'profile')
  const [unread,setUnread]=useState(()=>msgboxData?.unread_count??msgboxData?.inbox.filter(message=>!message.read_at).length??0)
@@ -85,7 +85,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
  }
 
  return <main className="mobile-shell ess-shell">
-  <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} · {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
+  <header className="ess-header"><div className="bandana-heading"><img src="/bandana-logo.png" alt="" width={44} height={44}/><div><div className="eyebrow">BANDANA / SEIDOHR</div><h1>Welcome, {employee.full_name}</h1><p>{employee.employee_no} � {display(employee.designation)}</p></div></div><div className="head-actions">{isAdmin?<a href="/employees">Admin Portal</a>:null}<button type="button" className="secondary" disabled={busy||familyBusy||profileBusy} onClick={()=>void logOut()}>Sign out</button></div></header>
   <nav className="ess-nav" aria-label="Self-service sections">
    {tabs.map(([key,label])=><button key={key} type="button" aria-pressed={tab===key} className={tab===key?'ess-nav-active':''} onClick={()=>setTab(key)}>{label}{((key==='contact'&&dirty)||(key==='family'&&familyDirty)||(key==='profile'&&profileDirty))?' *':''}</button>)}
    {leaveData&&<button type="button" aria-pressed={tab==='leave'} className={tab==='leave'?'ess-nav-active':''} onClick={()=>setTab('leave')}>Leave</button>}
@@ -105,7 +105,7 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
   {notice?<p role="status" className="notice">{notice}</p>:null}
   {conflict?<div className="panel"><p>Reloading will clear your unsaved contact changes.</p><button type="button" disabled={busy} onClick={()=>void reloadProfile()}>Reload latest profile</button></div>:null}
 
-  <ProfileEditor active={tab==='profile'} initialProfile={profile} onDirtyChange={setProfileDirty} onBusyChange={setProfileBusy} onSaved={updated=>{setProfile(updated);if(!dirty){setDraft(contactDraft(updated.contacts));setContactVersion(updated.profile_updated_at)}}}/>
+  <ProfileEditor active={tab==='profile'} initialProfile={profile} organisation={organisation} organisationUnavailable={organisationUnavailable} onDirtyChange={setProfileDirty} onBusyChange={setProfileBusy} onSaved={updated=>{setProfile(updated);if(!dirty){setDraft(contactDraft(updated.contacts));setContactVersion(updated.profile_updated_at)}}}/>
   <FamilyEditor active={tab==='family'} onDirtyChange={setFamilyDirty} onBusyChange={setFamilyBusy}/>
   {tab==='contact'?<section className="panel"><h2>My contact details</h2><p>You can update these details directly. Changes are saved to your HR record.</p>
    <form onSubmit={saveContact} className="ess-contact-form">
@@ -120,7 +120,8 @@ export default function Portal({initialProfile,team,isManager,teamUnavailable=fa
    designation:employee.designation,date_of_joining:profile.employment.date_of_joining,
   }}/><section className="panel"><FieldList fields={[[ 'medical_hospitalisation_limit_person_year_pkr', 'Medical Hospitalisation Limit / Person / Year (PKR)' ]]} values={profile.rewards}/></section></>:null}
 
-  {isManager?<section className="panel"><h2>My team</h2>{teamUnavailable?<p role="alert">Your team could not be loaded. Please try again later.</p>:team.length===0?<p>No verified direct reports have been linked yet.</p>:<ul className="team-list">{team.map(member=><li key={member.employee_no}><strong>{member.full_name}</strong><span>{member.employee_no} · {display(member.designation)}</span></li>)}</ul>}</section>:null}
+  {isManager?<section className="panel"><h2>My team</h2>{teamUnavailable?<p role="alert">Your team could not be loaded. Please try again later.</p>:team.length===0?<p>No verified direct reports have been linked yet.</p>:<ul className="team-list">{team.map(member=><li key={member.employee_no}><strong>{member.full_name}</strong><span>{member.employee_no} � {display(member.designation)}</span></li>)}</ul>}</section>:null}
  </main>
 }
+
 

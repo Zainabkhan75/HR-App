@@ -3,7 +3,7 @@ import {serverSupabase} from '../../lib/server'
 import Portal from './view'
 import AccountStatus from './account-status'
 import {employeeLeaveData} from '../../lib/leave'
-import type {EmployeeProfile} from '../../lib/ess-profile'
+import type {EmployeeOrganisation,EmployeeProfile} from '../../lib/ess-profile'
 
 export default async function PortalPage({searchParams}:{searchParams:Promise<{section?:string;message?:string}>}){
  const params=await searchParams
@@ -28,6 +28,8 @@ export default async function PortalPage({searchParams}:{searchParams:Promise<{s
  const {data:profile,error:profileError}=await db.rpc('my_employee_profile')
  if(profileError||!profile)return <AccountStatus email={user.email} title="Profile unavailable" message="We could not load your self-service profile. Please try again or contact HR."/>
 
+ const {data:organisation, error:organisationError}=await db.rpc('my_employee_organisation')
+
  const isManager=roles?.some(r=>r.role==='manager')??false
  const {data:team,error:teamError}=isManager?await db.rpc('my_team_summary'):{data:[],error:null}
  const date=new Intl.DateTimeFormat('en',{year:'numeric',month:'numeric',timeZone:'Asia/Karachi'}).formatToParts(new Date())
@@ -39,5 +41,6 @@ export default async function PortalPage({searchParams}:{searchParams:Promise<{s
   db.rpc('leave_workspace',{p_year:fiscalYear}),
  ])
  const leaveData=workspace?.employee_id&&workspace.pilot_applicant===true?employeeLeaveData(workspace):undefined
- return <Portal leaveData={leaveData} msgboxData={msgbox??undefined} showMsgBox={showMsgBox} focusedMessage={message} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
+ return <Portal leaveData={leaveData} msgboxData={msgbox??undefined} showMsgBox={showMsgBox} focusedMessage={message} isAdmin={isAdmin} initialProfile={profile as EmployeeProfile} organisation={(organisation as EmployeeOrganisation|null)??null} organisationUnavailable={!!organisationError} team={team??[]} isManager={isManager} teamUnavailable={!!teamError}/>
 }
+

@@ -1,5 +1,17 @@
 export type Values=Record<string,string|null>
 export type Hierarchy={employee_id:string; department:string|null; manager_title:string|null; manager_name:string|null; status:'root'|'position_unassigned'|'parent_unassigned'|'vacant'|'occupied'}
+export type EmployeeOrganisation={
+ department_code:string|null;department:string|null
+ subdepartment_code:string|null;subdepartment:string|null
+ position_code:string|null;position_title:string|null
+ designation_code:string|null;designation:string|null
+ location:string|null
+ reports_to_position_code:string|null;reports_to_position_title:string|null
+ reports_to_employee_name:string|null
+ reports_to_status:'top_position'|'unassigned'|'vacant'|'occupied'|null
+ effective_manager_position_code:string|null;effective_manager_position_title:string|null
+ effective_manager_name:string|null;reporting_fallback_used:boolean
+}
 export function reportingLabel(line?:Hierarchy){
  if(!line)return 'Hierarchy unavailable'
  if(line.status==='root')return 'Top position'
@@ -42,7 +54,7 @@ export const contactPatch=(values:Values,draft:Record<string,string>):Record<str
 )
 
 export const editableProfileSections=[
- {title:'Core Information',fields:[['full_name','Full Name'],['designation','Designation'],['department','Department'],['location','Location'],['reports_to_text','Reports To (Designation)'],['line_manager_employee_no','Line Manager Name']]},
+ {title:'Core Information',fields:[['full_name','Full Name']]},
  {title:'Personal Information',fields:[['gender','Gender'],['cnic_passport','CNIC / Passport'],['email','Work Email'],...backgroundSections[0].fields]},
  ...backgroundSections.slice(1),
  {title:'Employment Information',fields:[...employmentFields.slice(0,-2),employmentFields[4],employmentFields[3]]},
@@ -57,3 +69,4 @@ export const profilePatch=(profile:EmployeeProfile,draft:Record<string,string>):
  const baseline=profileDraft(profile)
  return Object.fromEntries(editableProfileSections.filter(section=>!('readOnly' in section)).flatMap(section=>section.fields.map(([key])=>key)).filter(key=>(draft[key]??'').trim()!==baseline[key].trim()).map(key=>[key,(draft[key]??'').trim()]))
 }
+
