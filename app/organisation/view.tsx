@@ -5,7 +5,7 @@ import {browserDb} from '../../lib/supabase'
 
 type SubDepartment={id:number;name:string;parent_department_id:string|null}
 type OrganisationDepartment={id:string;name:string}
-type Designation={id:number;title:string}
+type Designation={id:number;title:string;department_id:number|null}
 type Position={id:number;position_code:string|null;title:string;location:string|null;department_id:number|null;designation_id:number|null;reports_to_position_id:number|null}
 type Assignment={position_id:number|null}
 
@@ -40,7 +40,7 @@ export default function Organisation(){
   const [orgs,subs,roles,people,seats]=await Promise.all([
    db.from('organisation_departments').select('id,name').order('name'),
    db.from('departments').select('id,name,parent_department_id').order('name'),
-   db.from('designations').select('id,title').order('title'),
+   db.from('designations').select('id,title,department_id').order('title'),
    db.from('employees').select('position_id').eq('employment_state','active').limit(2000),
    db.from('positions').select('id,position_code,title,location,department_id,designation_id,reports_to_position_id').order('title').order('id'),
   ])
@@ -131,6 +131,8 @@ export default function Organisation(){
   }catch(failure){setError(failure instanceof Error?failure.message:'Could not add the position.')}
   finally{setBusy(false)}
  }
+ const designationCategories=designations.filter(role=>role.department_id===null)
+ const currentLegacyDesignation=designations.find(role=>String(role.id)===editPositionDesignation&&role.department_id!==null)
  const counts=new Map<number,number>()
  const designationByPosition=new Map(positions.map(position=>[position.id,position.designation_id]))
  for(const assignment of assignments){
@@ -146,7 +148,7 @@ export default function Organisation(){
     <label>Sub-department<select required value={positionDepartment} disabled={busy} onChange={event=>setPositionDepartment(event.target.value)}>
      <option value="">Select sub-department</option>{subDepartments.map(sub=><option key={sub.id} value={sub.id}>{sub.name} · {organisationDepartments.find(org=>org.id===sub.parent_department_id)?.name??'No Department'}</option>)}</select></label>
     <label>Designation<select required value={positionDesignation} disabled={busy} onChange={event=>{const designation=designations.find(item=>String(item.id)===event.target.value);setPositionDesignation(event.target.value);if(designation&&!positionTitle.trim())setPositionTitle(designation.title)}}>
-     <option value="">Select designation</option>{designations.map(role=><option key={role.id} value={role.id}>{role.title}</option>)}</select></label>
+     <option value="">Select designation</option>{designationCategories.map(role=><option key={role.id} value={role.id}>{role.title}</option>)}</select></label>
     <label>Position Title<input required value={positionTitle} disabled={busy} onChange={event=>setPositionTitle(event.target.value)}/></label>
     <label>Reports To<select required value={parentPosition} disabled={busy} onChange={event=>setParentPosition(event.target.value)}><option value="">Select reporting position</option>{positions.map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}</option>)}</select></label>
     <button disabled={busy||!positionTitle.trim()||!positionDepartment||!positionDesignation||!parentPosition}>Add Position</button>
@@ -156,7 +158,7 @@ export default function Organisation(){
    <form className="bar" onSubmit={event=>{event.preventDefault();void savePositionEdit()}}>
     <label>Position<select required value={editPositionId} disabled={busy} onChange={event=>{const value=event.target.value;setEditPositionId(value);const position=positions.find(item=>String(item.id)===value);if(position){setEditPositionTitle(position.title);setEditPositionDepartment(position.department_id==null?'':String(position.department_id));setEditPositionDesignation(position.designation_id==null?'':String(position.designation_id));setEditParentPosition(position.reports_to_position_id==null?'':String(position.reports_to_position_id))}}}><option value="">Select position</option>{positions.map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title].filter(Boolean).join(' · ')}</option>)}</select></label>
     <label>Sub-department<select required value={editPositionDepartment} disabled={busy} onChange={event=>setEditPositionDepartment(event.target.value)}><option value="">Select sub-department</option>{subDepartments.map(sub=><option key={sub.id} value={sub.id}>{sub.name} · {organisationDepartments.find(org=>org.id===sub.parent_department_id)?.name??'No Department'}</option>)}</select></label>
-    <label>Designation<select required value={editPositionDesignation} disabled={busy} onChange={event=>setEditPositionDesignation(event.target.value)}><option value="">Select designation</option>{designations.map(role=><option key={role.id} value={role.id}>{role.id} · {role.title}</option>)}</select></label>
+    <label>Designation<select required value={editPositionDesignation} disabled={busy} onChange={event=>setEditPositionDesignation(event.target.value)}><option value="">Select designation</option>{currentLegacyDesignation&&<option disabled value={currentLegacyDesignation.id}>{currentLegacyDesignation.id} · {currentLegacyDesignation.title} (existing legacy assignment)</option>}{designationCategories.map(role=><option key={role.id} value={role.id}>{role.id} · {role.title}</option>)}</select></label>
     <label>Position Title<input required value={editPositionTitle} disabled={busy} onChange={event=>setEditPositionTitle(event.target.value)}/></label>
     <label>Reports To<select value={editParentPosition} disabled={busy} onChange={event=>setEditParentPosition(event.target.value)}><option value="">No parent position</option>{positions.filter(position=>String(position.id)!==editPositionId).map(position=><option key={position.id} value={position.id}>{[position.position_code??position.id,position.title,position.location].filter(Boolean).join(' · ')}</option>)}</select></label>
     <button disabled={busy||!editPositionId||!editPositionTitle.trim()||!editPositionDepartment||!editPositionDesignation}>Save Position</button>
@@ -171,7 +173,7 @@ export default function Organisation(){
    <div className="tablewrap"><table><thead><tr><th>Sub-department ID</th><th>Sub-department</th><th>Department</th><th>Positions</th><th>Actions</th></tr></thead><tbody>{subDepartments.map(sub=><tr key={sub.id}><td>{sub.id}</td><td>{sub.name}</td><td><select aria-label={'Department for '+sub.name} value={sub.parent_department_id??''} disabled={busy} onChange={event=>void saveSubDepartmentParent(sub.id,event.target.value)}><option value="">Select Department</option>{organisationDepartments.map(org=><option key={org.id} value={org.id}>{org.id} · {org.name}</option>)}</select></td><td>{positions.filter(position=>position.department_id===sub.id).length}</td><td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'sub',id:sub.id,previous:sub.name});setDraft(sub.name)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
   <section className="panel"><h2>Designations</h2><div className="bar"><label>New Designation<input value={newTitle} disabled={busy} onChange={event=>setNewTitle(event.target.value)}/></label><button disabled={busy||!newTitle.trim()} onClick={()=>void add('designation')}>Add Designation</button></div>
-   <div className="tablewrap"><table><thead><tr><th>Designation ID</th><th>Designation</th><th>Active Employees</th><th>Actions</th></tr></thead><tbody>{designations.map(role=><tr key={role.id}><td>{role.id}</td><td>{role.title}</td><td>{counts.get(role.id)??0}</td><td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'designation',id:role.id,previous:role.title});setDraft(role.title)}}>Rename</button></td></tr>)}</tbody></table></div>
+   <div className="tablewrap"><table><thead><tr><th>Designation ID</th><th>Designation</th><th>Active Employees</th><th>Actions</th></tr></thead><tbody>{designationCategories.map(role=><tr key={role.id}><td>{role.id}</td><td>{role.title}</td><td>{counts.get(role.id)??0}</td><td><button className="link" disabled={busy} onClick={()=>{setEditing({kind:'designation',id:role.id,previous:role.title});setDraft(role.title)}}>Rename</button></td></tr>)}</tbody></table></div>
   </section>
   {editing&&<div className="overlay"><section className="dialog" role="dialog" aria-modal="true" aria-label="Rename shared record"><h2>Rename {editing.kind==='org'?'Department':editing.kind==='sub'?'Sub-department':'Designation'}</h2><p>Save to update this name in the organisation register.</p><label>Name<input autoFocus value={draft} disabled={busy} onChange={event=>setDraft(event.target.value)}/></label><div className="bar"><button disabled={busy||!draft.trim()} onClick={()=>void saveChange()}>{busy?'Saving…':'Save Name'}</button><button className="secondary" disabled={busy} onClick={()=>setEditing(null)}>Cancel</button></div></section></div>}
  </main>
