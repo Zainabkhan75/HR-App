@@ -11,7 +11,7 @@ import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeOrganisation,EmployeeProfile,Values} from '../../lib/ess-profile'
 import {formatMoneyField} from '../../lib/money'
 
-type Team={parent_id:number;depth:number;position_id:number;position_title:string|null;employee_no:string|null;full_name:string|null}
+type Team={position_code:string|null;designation_id:number|null;designation_title:string|null;parent_id:number;depth:number;position_id:number;position_title:string|null;employee_no:string|null;full_name:string|null}
 const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','My Payslip']] as const
 type Tab=typeof tabs[number][0]|'leave'|'msgbox'|'team'
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
@@ -36,10 +36,10 @@ function TeamHierarchy({team}:{team:Team[]}) {
  function branch(group:Team[]):React.ReactElement {
   const position=group[0]
   const reports=children.get(position.position_id)??[]
-  return <li key={position.position_id}>
-   <strong>{display(position.position_title)}</strong>
-   {group.map(row=><div key={row.employee_no??'vacant'}>{row.employee_no?row.employee_no+' | '+display(row.full_name):'Vacant'}</div>)}
-   {reports.length>0&&<ul style={{borderLeft:'2px solid #d8e0e8',paddingLeft:'1rem',marginBlock:'0.6rem'}}>{reports.map(branch)}</ul>}
+  return <li key={position.position_id} style={{marginBlock:'0.55rem'}}>
+   <strong>{position.position_code} · {display(position.position_title)}</strong>{' '}
+   <small>{position.designation_title?position.designation_id+' · '+position.designation_title:'Designation unassigned'} | {group.map(row=>row.employee_no?row.employee_no+' · '+display(row.full_name):'Vacant').join(', ')}</small>
+   {reports.length>0&&<ul style={{borderLeft:'2px solid #d8e0e8',paddingLeft:'1.4rem',marginBlock:'0.6rem'}}>{reports.map(branch)}</ul>}
   </li>
  }
  return <><p>Direct reports are listed first in each branch. Positions underneath them report to that position.</p>
