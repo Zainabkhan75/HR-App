@@ -141,6 +141,29 @@ export default function Organisation(){
   const designationId=assignment.position_id==null?null:designationByPosition.get(assignment.position_id)
   if(designationId!=null)counts.set(designationId,(counts.get(designationId)??0)+1)
  }
+ function renderReportingTree(subId:number){
+  const seats=positions.filter(p=>(p.department_id??-1)===subId).sort((a,b)=>a.title.localeCompare(b.title)||a.id-b.id)
+  const localIds=new Set(seats.map(p=>p.id))
+  const visited=new Set<number>()
+  function row(pos:Position):React.ReactNode{
+   if(visited.has(pos.id))return null
+   visited.add(pos.id)
+   const reports=seats.filter(p=>p.reports_to_position_id===pos.id)
+   const manager=positions.find(p=>p.id===pos.reports_to_position_id)
+   const designation=designations.find(d=>d.id===pos.designation_id)
+   const staff=assignments.filter(a=>a.position_id===pos.id)
+   return <li key={pos.id} style={{marginBlock:'0.55rem'}}>
+    <strong>{pos.position_code} · {pos.title}</strong>{' '}
+    <small>{designation?designation.id+' · '+designation.title:'Designation unassigned'} | {staff.length?staff.map(a=>a.employee_no+' · '+a.full_name).join(', '):'Vacant'}</small>
+    {manager&&!localIds.has(manager.id)&&<div><small>Reports to {manager.position_code} · {manager.title} (outside this sub-department)</small></div>}
+    {reports.length>0&&<ul style={{borderLeft:'2px solid #d8e0e8',paddingLeft:'1.4rem'}}>{reports.map(row)}</ul>}
+   </li>
+  }
+  const roots=seats.filter(p=>p.reports_to_position_id===null||!localIds.has(p.reports_to_position_id))
+  const rows=roots.map(row)
+  const unresolved=seats.filter(p=>!visited.has(p.id))
+  return <><ul>{rows}</ul>{unresolved.length>0&&<><p>Reporting chain needs review</p><ul>{unresolved.map(row)}</ul></>}</>
+ }
  return <main className="shell">
   <header><div><div className="eyebrow">BANDANA / HR ADMINISTRATION</div><h1>Positions, Departments, Sub-departments &amp; Designations</h1></div>
    <nav className="head-actions"><a href="/employees">Employee Directory</a><a href="/reports">Reports</a></nav></header>
@@ -153,16 +176,7 @@ export default function Organisation(){
     return <details key={org.id} className="panel"><summary>{org.id} {org.name}</summary>
      {subs.length===0&&<p>No sub-departments assigned.</p>}
      {subs.map(sub=><section key={sub.id}><h3>{sub.id>0?'DP'+sub.id+' · ':''}{sub.name}</h3>
-      {positions.filter(p=>(p.department_id??-1)===sub.id).map(pos=>{
-       const staff=assignments.filter(a=>a.position_id===pos.id)
-       const manager=positions.find(p=>p.id===pos.reports_to_position_id)
-       const designation=designations.find(d=>d.id===pos.designation_id)
-       return <article key={pos.id} className="panel"><strong>{pos.position_code} · {pos.title}</strong>
-        <div>Designation: {designation?designation.id+' · '+designation.title:'Unassigned'}</div>
-        <div>Reports to: {manager?manager.position_code+' · '+manager.title:'No parent position'}</div>
-        {staff.length?staff.map(a=><div key={a.employee_no}>{a.employee_no} · {a.full_name}</div>):<div>Vacant</div>}
-       </article>
-      })}
+      {renderReportingTree(sub.id)}
       {!positions.some(p=>(p.department_id??-1)===sub.id)&&<p>No positions assigned.</p>}
      </section>)}</details>
    })}
