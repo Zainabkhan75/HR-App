@@ -11,16 +11,16 @@ import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeOrganisation,EmployeeProfile,Values} from '../../lib/ess-profile'
 import {formatMoneyField} from '../../lib/money'
 
-type Team={employee_no:string;full_name:string;designation:string|null;department:string|null}
+type Team={position_id:number;position_title:string|null;employee_no:string|null;full_name:string|null}
 const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','My Payslip']] as const
-type Tab=typeof tabs[number][0]|'leave'|'msgbox'
+type Tab=typeof tabs[number][0]|'leave'|'msgbox'|'team'
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
 function FieldList({fields,values}:{fields:readonly (readonly [string,string])[];values:Values}){
  return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(formatMoneyField(key,values[key]))}</dd></div>)}</dl>
 }
 
-export default function Portal({initialProfile,organisation,organisationUnavailable=false,team,isManager,teamUnavailable=false,isAdmin=false,leaveData,msgboxData,showMsgBox,focusedMessage}:{leaveData?:WorkspaceData;msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;organisation:EmployeeOrganisation|null;organisationUnavailable?:boolean;team:Team[];isManager:boolean;teamUnavailable?:boolean}){
+export default function Portal({initialProfile,organisation,organisationUnavailable=false,team,hasTeam,teamUnavailable=false,isAdmin=false,leaveData,msgboxData,showMsgBox,focusedMessage}:{leaveData?:WorkspaceData;msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;organisation:EmployeeOrganisation|null;organisationUnavailable?:boolean;team:Team[];hasTeam:boolean;teamUnavailable?:boolean}){
  const [profile,setProfile]=useState(initialProfile)
  const [tab,setTab]=useState<Tab>(showMsgBox?'msgbox':'profile')
  const [unread,setUnread]=useState(()=>msgboxData?.unread_count??msgboxData?.inbox.filter(message=>!message.read_at).length??0)
@@ -92,7 +92,9 @@ export default function Portal({initialProfile,organisation,organisationUnavaila
    <button type="button" aria-pressed={tab==='msgbox'} aria-label={unread>0?'My Msgs, '+unread+' unread '+(unread===1?'message':'messages'):'My Msgs'} className={'msgbox-tab'+(tab==='msgbox'?' ess-nav-active':'')} onClick={()=>setTab('msgbox')}>
     My Msgs{unread>0&&<span className="msgbox-unread-badge" aria-hidden="true">{unread}</span>}
    </button>
+   {hasTeam&&<button type="button" aria-pressed={tab==='team'} className={tab==='team'?'ess-nav-active':''} onClick={()=>setTab('team')}>My Team</button>}
   </nav>
+  {teamUnavailable&&<p role="alert">Team information could not be loaded.</p>}
   {leaveData&&<div hidden={tab!=='leave'}>
    <Workspace initialData={leaveData} initialSection="leave" employee={employee} embedded/>
   </div>}
@@ -120,7 +122,11 @@ export default function Portal({initialProfile,organisation,organisationUnavaila
    designation:employee.designation,date_of_joining:profile.employment.date_of_joining,
   }}/><section className="panel"><FieldList fields={[[ 'medical_hospitalisation_limit_person_year_pkr', 'Medical Hospitalisation Limit / Person / Year (PKR)' ]]} values={profile.rewards}/></section></>:null}
 
-  {isManager?<section className="panel"><h2>My team</h2>{teamUnavailable?<p role="alert">Your team could not be loaded. Please try again later.</p>:team.length===0?<p>No verified direct reports have been linked yet.</p>:<ul className="team-list">{team.map(member=><li key={member.employee_no}><strong>{member.full_name}</strong><span>{member.employee_no}  |  {display(member.designation)}</span></li>)}</ul>}</section>:null}
+  {hasTeam&&tab==='team'&&<section className="panel"><h2>My Team</h2>
+   <ul className="team-list">{team.map(member=><li key={member.position_id+'-'+(member.employee_no??'vacant')}>
+    <strong>{display(member.position_title)}</strong><span>{member.employee_no?member.employee_no+' | '+display(member.full_name):'Vacant'}</span>
+   </li>)}</ul>
+  </section>}
  </main>
 }
 
