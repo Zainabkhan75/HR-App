@@ -8,7 +8,7 @@ type SubDepartment={id:number;name:string;parent_department_id:string|null}
 type OrganisationDepartment={id:string;name:string}
 type Designation={id:number;title:string;department_id:number|null}
 type Position={id:number;position_code:string|null;title:string;location:string|null;department_id:number|null;designation_id:number|null;reports_to_position_id:number|null}
-type Assignment={position_id:number|null}
+type Assignment={position_id:number|null;employee_no:string;full_name:string}
 
 export default function Organisation(){
  const [positions,setPositions]=useState<Position[]>([])
@@ -42,7 +42,7 @@ export default function Organisation(){
    db.from('organisation_departments').select('id,name').order('name'),
    db.from('departments').select('id,name,parent_department_id').order('name'),
    db.from('designations').select('id,title,department_id').order('title'),
-   db.from('employees').select('position_id').eq('employment_state','active').limit(2000),
+   db.from('employees').select('position_id,employee_no,full_name').eq('employment_state','active').limit(2000),
    db.from('positions').select('id,position_code,title,location,department_id,designation_id,reports_to_position_id').order('id'),
   ])
   if(orgs.error||subs.error||roles.error||people.error||seats.error)throw Error('Could not load organisation records.')
@@ -145,6 +145,29 @@ export default function Organisation(){
   <header><div><div className="eyebrow">BANDANA / HR ADMINISTRATION</div><h1>Positions, Departments, Sub-departments &amp; Designations</h1></div>
    <nav className="head-actions"><a href="/employees">Employee Directory</a><a href="/reports">Reports</a></nav></header>
   {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
+  <details className="panel"><summary><strong>Organisation chart</strong></summary>
+   {organisationDepartments.concat([{id:'',name:'Unassigned department'}]).map(org=>{
+    const subs=subDepartments.filter(s=>(s.parent_department_id??'')===org.id)
+    if(!org.id&&positions.some(p=>p.department_id===null))subs.push({id:-1,name:'Unassigned sub-department',parent_department_id:null})
+    if(!org.id&&!subs.length)return null
+    return <details key={org.id} className="panel"><summary>{org.id} {org.name}</summary>
+     {subs.length===0&&<p>No sub-departments assigned.</p>}
+     {subs.map(sub=><section key={sub.id}><h3>{sub.id>0?'DP'+sub.id+' · ':''}{sub.name}</h3>
+      {positions.filter(p=>(p.department_id??-1)===sub.id).map(pos=>{
+       const staff=assignments.filter(a=>a.position_id===pos.id)
+       const manager=positions.find(p=>p.id===pos.reports_to_position_id)
+       const designation=designations.find(d=>d.id===pos.designation_id)
+       return <article key={pos.id} className="panel"><strong>{pos.position_code} · {pos.title}</strong>
+        <div>Designation: {designation?designation.id+' · '+designation.title:'Unassigned'}</div>
+        <div>Reports to: {manager?manager.position_code+' · '+manager.title:'No parent position'}</div>
+        {staff.length?staff.map(a=><div key={a.employee_no}>{a.employee_no} · {a.full_name}</div>):<div>Vacant</div>}
+       </article>
+      })}
+      {!positions.some(p=>(p.department_id??-1)===sub.id)&&<p>No positions assigned.</p>}
+     </section>)}</details>
+   })}
+   {assignments.some(a=>a.position_id===null)&&<details><summary>Employees without a position</summary>{assignments.filter(a=>a.position_id===null).map(a=><div key={a.employee_no}>{a.employee_no} · {a.full_name}</div>)}</details>}
+  </details>
   <section className="panel"><h2>Add New Position</h2>
    <form className="bar" onSubmit={event=>{event.preventDefault();void addPosition()}}>
     <label>Sub-department<SearchableSelect required value={positionDepartment} disabled={busy} onChange={event=>setPositionDepartment(event.target.value)}>
