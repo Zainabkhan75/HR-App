@@ -141,8 +141,8 @@ export default function Organisation(){
   const designationId=assignment.position_id==null?null:designationByPosition.get(assignment.position_id)
   if(designationId!=null)counts.set(designationId,(counts.get(designationId)??0)+1)
  }
- function renderReportingTree(subId:number){
-  const seats=positions.filter(p=>(p.department_id??-1)===subId).sort((a,b)=>a.title.localeCompare(b.title)||a.id-b.id)
+ function renderReportingTree(subId?:number){
+  const seats=positions.filter(p=>subId===undefined||(p.department_id??-1)===subId).sort((a,b)=>a.title.localeCompare(b.title)||a.id-b.id)
   const localIds=new Set(seats.map(p=>p.id))
   const visited=new Set<number>()
   function row(pos:Position):React.ReactNode{
@@ -169,6 +169,8 @@ export default function Organisation(){
    <nav className="head-actions"><a href="/employees">Employee Directory</a><a href="/reports">Reports</a></nav></header>
   {error&&<p className="error" role="alert">{error}</p>}{notice&&<p className="notice" role="status">{notice}</p>}
   <details className="panel"><summary><strong>Organisation chart</strong></summary>
+   <details className="panel" open><summary><strong>Company reporting hierarchy</strong></summary>{renderReportingTree()}</details>
+   <h3>By department</h3>
    {organisationDepartments.concat([{id:'',name:'Unassigned department'}]).map(org=>{
     const subs=subDepartments.filter(s=>(s.parent_department_id??'')===org.id)
     if(!org.id&&positions.some(p=>p.department_id===null))subs.push({id:-1,name:'Unassigned sub-department',parent_department_id:null})
