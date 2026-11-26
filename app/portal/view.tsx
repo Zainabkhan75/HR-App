@@ -11,13 +11,39 @@ import {contactFields,contactDraft,contactPatch} from '../../lib/ess-profile'
 import type {EmployeeOrganisation,EmployeeProfile,Values} from '../../lib/ess-profile'
 import {formatMoneyField} from '../../lib/money'
 
-type Team={position_id:number;position_title:string|null;employee_no:string|null;full_name:string|null}
+type Team={parent_id:number;depth:number;position_id:number;position_title:string|null;employee_no:string|null;full_name:string|null}
 const tabs=[['profile','My profile'],['contact','Contact details'],['family','Family & dependants'],['payroll','My Payslip']] as const
 type Tab=typeof tabs[number][0]|'leave'|'msgbox'|'team'
 const display=(value:string|null|undefined)=>value?.trim()||'Not recorded'
 
 function FieldList({fields,values}:{fields:readonly (readonly [string,string])[];values:Values}){
  return <dl className="profile-grid">{fields.map(([key,label])=><div className="ess-field" key={key}><dt>{label}</dt><dd>{display(formatMoneyField(key,values[key]))}</dd></div>)}</dl>
+}
+
+function TeamHierarchy({team}:{team:Team[]}) {
+ const positions=new Map<number,Team[]>()
+ for(const row of team){
+  const occupants=positions.get(row.position_id)
+  if(occupants) occupants.push(row)
+  else positions.set(row.position_id,[row])
+ }
+ const groups=Array.from(positions.values())
+ const children=new Map<number,Team[][]>()
+ for(const group of groups){
+  const parent=group[0].parent_id
+  children.set(parent,[...(children.get(parent)??[]),group])
+ }
+ function branch(group:Team[]):React.ReactElement {
+  const position=group[0]
+  const reports=children.get(position.position_id)??[]
+  return <li key={position.position_id}>
+   <strong>{display(position.position_title)}</strong>
+   {group.map(row=><div key={row.employee_no??'vacant'}>{row.employee_no?row.employee_no+' | '+display(row.full_name):'Vacant'}</div>)}
+   {reports.length>0&&<ul style={{borderLeft:'2px solid #d8e0e8',paddingLeft:'1rem',marginBlock:'0.6rem'}}>{reports.map(branch)}</ul>}
+  </li>
+ }
+ return <><p>Direct reports are listed first in each branch. Positions underneath them report to that position.</p>
+ <ul>{groups.filter(group=>group[0].depth===1).map(branch)}</ul></>
 }
 
 export default function Portal({initialProfile,organisation,organisationUnavailable=false,team,hasTeam,teamUnavailable=false,isAdmin=false,leaveData,msgboxData,showMsgBox,focusedMessage}:{leaveData?:WorkspaceData;msgboxData?:WorkspaceData;showMsgBox:boolean;focusedMessage?:string;isAdmin?:boolean;initialProfile:EmployeeProfile;organisation:EmployeeOrganisation|null;organisationUnavailable?:boolean;team:Team[];hasTeam:boolean;teamUnavailable?:boolean}){
@@ -123,9 +149,7 @@ export default function Portal({initialProfile,organisation,organisationUnavaila
   }}/><section className="panel"><FieldList fields={[[ 'medical_hospitalisation_limit_person_year_pkr', 'Medical Hospitalisation Limit / Person / Year (PKR)' ]]} values={profile.rewards}/></section></>:null}
 
   {hasTeam&&tab==='team'&&<section className="panel"><h2>My Team</h2>
-   <ul className="team-list">{team.map(member=><li key={member.position_id+'-'+(member.employee_no??'vacant')}>
-    <strong>{display(member.position_title)}</strong><span>{member.employee_no?member.employee_no+' | '+display(member.full_name):'Vacant'}</span>
-   </li>)}</ul>
+   <TeamHierarchy team={team}/>
   </section>}
  </main>
 }

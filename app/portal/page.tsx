@@ -30,7 +30,7 @@ export default async function PortalPage({searchParams}:{searchParams:Promise<{s
 
  const {data:organisation, error:organisationError}=await db.rpc('my_employee_organisation')
 
- const {data:team,error:teamError}=await db.rpc('my_direct_team_positions')
+ const {data:team,error:teamError}=await db.rpc('my_team_hierarchy')
  const hasTeam=(team?.length??0)>0
  const date=new Intl.DateTimeFormat('en',{year:'numeric',month:'numeric',timeZone:'Asia/Karachi'}).formatToParts(new Date())
  const year=Number(date.find(part=>part.type==='year')?.value)
