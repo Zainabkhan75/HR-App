@@ -10,7 +10,7 @@ export type DetailRow={employee_id:string;profile:Record<string,unknown>|null;pa
 export type FamilyMember={full_name:string;age:number;date_of_birth?:string;pre_existing_conditions:string;cnic:string}
 export type FamilyRecord={employee_id:string;spouse:FamilyMember|null;children:FamilyMember[]|null;marital_status?:string|null;updated_at:string}
 export type AccountRecord={employee_id:string;user_id:string;username:string;login_email:string;is_active:boolean;must_change_password:boolean}
-export type Snapshot={positionIds?:number[];employees:EmployeeRow[];details:DetailRow[];families?:FamilyRecord[];accounts?:AccountRecord[]}
+export type Snapshot={assignments?:{id:number;position:string;designation:string}[];positionIds?:number[];employees:EmployeeRow[];details:DetailRow[];families?:FamilyRecord[];accounts?:AccountRecord[]}
 export type FamilyInput={type:'Spouse'|'Child';childNumber:number;replace:boolean;values:Record<string,string>}
 export type UploadRow={action?:'NEW'|'UPDATE';reference?:string;employeeNo:string;name:string;replace:boolean;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;control?:Record<string,string>;family:FamilyInput[]}
 export type PlannedRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string;name:string;replace:boolean;expectedCoreUpdatedAt:string;expectedDetailsUpdatedAt:string;expectedFamilyUpdatedAt:string|null;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;control:Record<string,string>;expectedAccount:string;family:FamilyInput[];fill:number;overwrite:number;skipped:number;unchanged:number;changes:{field:string;before:string;after:string;action:'fill'|'replace'|'skip'}[]}
@@ -41,7 +41,8 @@ export const MODE_HEADER='Replace existing values? (YES/NO)'
 export const ACTION_HEADER='Action (NEW/UPDATE)'
 export const REF_HEADER='Upload reference'
 const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC',REF_HEADER,'Date of Birth']
-const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,'Designation','Sub-department','Reports To','Profile | reporting to','Profile | Reporting to','Profile | Line Manager Employee ID'])
+const legacyReportingKeys=['legacy_reports_to_text','reported_manager_name','reported_manager_designation']
+const reserved=new Set(['Position','Designation',...legacyReportingKeys.map(key=>'Profile | '+key.replaceAll('_',' ')),ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,'Sub-department','Reports To','Profile | reporting to','Profile | Reporting to','Profile | Line Manager Employee ID'])
 const legacyProfileHeaders: Record<string,string> = {
  'Profile | Offer Date':'Profile | Date of Confirmation',
  'Profile | line manager employee no':'Profile | Line Manager Employee ID',
@@ -57,7 +58,7 @@ export function fieldsFor(snapshot:Snapshot):Field[]{
   for(const label of section.labels)if(label!=='Reporting to')profile.set(fieldKey(label),label==='Offer Date'?'Date of Confirmation':label)
   if(section.key==='background')profile.set('highest_qualification_level','Highest Qualification Level')
  }
- for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!profile.has(key)&&!retiredSalaryKeys.has(key)&&!['reporting_line_basis','reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key))profile.set(key,key.replaceAll('_',' '))}
+ for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!profile.has(key)&&!retiredSalaryKeys.has(key)&&![...legacyReportingKeys,'reporting_line_basis','reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key))profile.set(key,key.replaceAll('_',' '))}
  profile.delete('reporting_to')
  profile.set('highest_qualification_level','Highest Qualification Level')
  profile.set('gender','Gender')
@@ -88,7 +89,7 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  guide.addRow(['Bandana employee bulk upload'])
  for(const line of [
   'Choose UPDATE for an existing employee and enter their six-digit Employee ID. YES/NO keeps its existing replacement behaviour.',
-  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name and Position ID. Department, sub-department, designation and reporting line come from the position. Older workbook columns for these fields are ignored. An Active employee ID is assigned only when you apply.',
+  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name and Position ID. Department, sub-department, designation and reporting line come from the position. Position and Designation show the saved assignment for reference. Edit Position ID to change it. Older reporting columns are ignored. An Active employee ID is assigned only when you apply.',
   'Give each NEW row a unique Upload reference such as NEW-01 if adding family rows; repeat that reference on the Family sheet with Employee ID blank.',
   'Potential duplicates by name, CNIC or email must be resolved before applying. Credential actions run after the profile is saved.',
   'The Employees sheet starts with saved values. Family details are normally submitted by employees in the portal.',
@@ -102,11 +103,13 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
   'Marital Status uses Single/Married. Enter Married to add family members. Existing family records are retained when changing to Single.',
  ])guide.addRow([line])
  guide.getColumn(1).width=115;guide.getRow(1).font={bold:true,size:16,color:{argb:'FF15568E'}}
- const fields=fieldsFor(snapshot),headers=[ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,...fields.map(f=>f.header)]
+ const assignments=new Map(snapshot.assignments?.map(p=>[p.id,p]))
+ const fields=fieldsFor(snapshot),headers=[ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,...fields.map(f=>f.header),'Position','Designation']
  sheet.addRow(['Latest saved values are prefilled. Edit this copy, then upload it. Row 2 contains column headings; data starts on row 3.'])
  sheet.addRow(headers);reference.addRow(['Reference only. Current values at download time; edits on this sheet are not uploaded.']);reference.addRow(headers)
  const details=new Map(snapshot.details.map(d=>[d.employee_id,d])),accounts=new Map((snapshot.accounts??[]).map(a=>[a.employee_id,a])),families=new Map((snapshot.families??[]).map(f=>[f.employee_id,f]))
  for(const employee of snapshot.employees){const detail=details.get(employee.id),profile=detail?.profile??{},payroll=detail?.payroll_sep_2026??{}
+    const assignment=assignments.get(employee.position_id??-1)
     const controls=controlValues(employee,families.get(employee.id),accounts.get(employee.id))
     const values=fields.map(f=>{
    if(f.bucket==='control')return controls[f.key]??''
@@ -114,13 +117,13 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
    if(f.bucket==='profile')return f.key==='notes'?'':f.key==='gender'?cellText(profile.gender)||'Male':cellText(profile[f.key])
    if(f.key==='employee_id')return employee.employee_no
    if(f.key==='full_name')return employee.full_name
-   if(f.key==='designation')return cellText(employee.designation)
+   if(f.key==='designation')return assignment?.designation??''
    if(f.key==='date_of_joining')return cellText(profile.date_of_joining)
    return cellText(payroll[f.key])
   })
-  const row=sheet.addRow([employee.employee_no,'NO','UPDATE','',...values])
+  const row=sheet.addRow([employee.employee_no,'NO','UPDATE','',...values,assignment?.position??'',assignment?.designation??''])
   row.getCell(1).numFmt='@';row.getCell(1).alignment={horizontal:'left'}
-  reference.addRow([employee.employee_no,'','UPDATE','',...values])
+  reference.addRow([employee.employee_no,'','UPDATE','',...values,assignment?.position??'',assignment?.designation??''])
  }
  sheet.views=[{state:'frozen',xSplit:2,ySplit:2}]
  sheet.getRow(1).font={bold:true,color:{argb:'FF15568E'}};sheet.getRow(1).height=28

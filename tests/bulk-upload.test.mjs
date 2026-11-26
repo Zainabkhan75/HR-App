@@ -134,3 +134,27 @@ test('legacy hierarchy columns cannot change assignment during upload',async()=>
  assert.deepEqual(rows[0].profile,{})
  assert.throws(()=>bulk.planUpload(rows,{...snapshot,positionIds:[1]},fields),/Invalid Position ID/)
 })
+
+test('workbook uses assigned classification and ignores legacy manager values',async()=>{
+ const sample={...snapshot,employees:[{...snapshot.employees[0],position_id:72,designation:'Merchandiser'}],assignments:[{id:72,position:'Merchandiser',designation:'Executive'}]}
+ const keys=['legacy_reports_to_text','reported_manager_name','reported_manager_designation']
+ sample.details=[{...snapshot.details[0],profile:Object.fromEntries(keys.map(k=>[k,'old']))}]
+ const fields=bulk.fieldsFor(sample)
+ const book=new (nodeRequire('exceljs').Workbook)()
+ await book.xlsx.load(await bulk.template(sample))
+ for(const name of ['Employees','Current data']){
+  const sheet=book.getWorksheet(name),headers=sheet.getRow(2).values
+  for(const [header,value] of [['Position','Merchandiser'],['Designation','Executive'],['Employees Payroll Details | Designation','Executive']])assert.equal(sheet.getCell(3,headers.indexOf(header)).value,value)
+ }
+ const sheet=book.getWorksheet('Employees')
+ for(const key of keys){
+  const header='Profile | '+key.replaceAll('_',' ')
+  assert.ok(!fields.some(f=>f.header===header))
+  const col=sheet.columnCount+1
+  sheet.getCell(2,col).value=header
+  sheet.getCell(3,col).value='conflicting manager'
+ }
+ const [row]=await bulk.parseWorkbook(Buffer.from(await book.xlsx.writeBuffer()),fields)
+ for(const key of keys)assert.ok(!(key in row.profile))
+ assert.ok(fields.some(f=>f.key==='previous_designation'))
+})
