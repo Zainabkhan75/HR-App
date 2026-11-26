@@ -10,7 +10,7 @@ export type DetailRow={employee_id:string;profile:Record<string,unknown>|null;pa
 export type FamilyMember={full_name:string;age:number;date_of_birth?:string;pre_existing_conditions:string;cnic:string}
 export type FamilyRecord={employee_id:string;spouse:FamilyMember|null;children:FamilyMember[]|null;marital_status?:string|null;updated_at:string}
 export type AccountRecord={employee_id:string;user_id:string;username:string;login_email:string;is_active:boolean;must_change_password:boolean}
-export type Snapshot={employees:EmployeeRow[];details:DetailRow[];families?:FamilyRecord[];accounts?:AccountRecord[]}
+export type Snapshot={positionIds?:number[];employees:EmployeeRow[];details:DetailRow[];families?:FamilyRecord[];accounts?:AccountRecord[]}
 export type FamilyInput={type:'Spouse'|'Child';childNumber:number;replace:boolean;values:Record<string,string>}
 export type UploadRow={action?:'NEW'|'UPDATE';reference?:string;employeeNo:string;name:string;replace:boolean;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;control?:Record<string,string>;family:FamilyInput[]}
 export type PlannedRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string;name:string;replace:boolean;expectedCoreUpdatedAt:string;expectedDetailsUpdatedAt:string;expectedFamilyUpdatedAt:string|null;core:Record<string,string>;profile:Record<string,string>;payroll:Record<string,string>;control:Record<string,string>;expectedAccount:string;family:FamilyInput[];fill:number;overwrite:number;skipped:number;unchanged:number;changes:{field:string;before:string;after:string;action:'fill'|'replace'|'skip'}[]}
@@ -18,9 +18,6 @@ export type PlannedRow={action:'NEW'|'UPDATE';reference:string;employeeNo:string
 const coreFields:Field[]=[
  {header:'Employee Name',bucket:'core',key:'full_name'},
  {header:'Position ID',bucket:'core',key:'position_id'},
- {header:'Designation',bucket:'core',key:'designation'},
- {header:'Sub-department',bucket:'core',key:'department'},
- {header:'Reports To',bucket:'core',key:'reports_to_text'},
  {header:'Location',bucket:'core',key:'location'},
 ]
 const controlFields:Field[]=[
@@ -44,7 +41,7 @@ export const MODE_HEADER='Replace existing values? (YES/NO)'
 export const ACTION_HEADER='Action (NEW/UPDATE)'
 export const REF_HEADER='Upload reference'
 const familyHeaders=[ID_HEADER,'Employee Name','Member Type (Spouse/Child)','Child Number',MODE_HEADER,'Member Full Name','Age','Pre-existing Conditions','CNIC',REF_HEADER,'Date of Birth']
-const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,'Profile | Reporting to'])
+const reserved=new Set([ID_HEADER,MODE_HEADER,ACTION_HEADER,REF_HEADER,'Designation','Sub-department','Reports To','Profile | reporting to','Profile | Reporting to','Profile | Line Manager Employee ID'])
 const legacyProfileHeaders: Record<string,string> = {
  'Profile | Offer Date':'Profile | Date of Confirmation',
  'Profile | line manager employee no':'Profile | Line Manager Employee ID',
@@ -61,14 +58,13 @@ export function fieldsFor(snapshot:Snapshot):Field[]{
   if(section.key==='background')profile.set('highest_qualification_level','Highest Qualification Level')
  }
  for(const detail of snapshot.details){for(const key of Object.keys(detail.profile??{}))if(!profile.has(key)&&!retiredSalaryKeys.has(key)&&!['reporting_line_basis','reporting_line_source','as_is_reports_to','reporting_line_gap'].includes(key))profile.set(key,key.replaceAll('_',' '))}
- profile.set('line_manager_employee_no','Line Manager Employee ID')
+ profile.delete('reporting_to')
  profile.set('highest_qualification_level','Highest Qualification Level')
  profile.set('gender','Gender')
- const managerField={header:'Profile | Line Manager Employee ID',bucket:'profile' as const,key:'line_manager_employee_no'}
  const fields=[...coreFields,{header:'Record Status',bucket:'core' as const,key:'record_status'},{header:'Source / verification note',bucket:'core' as const,key:'source_note'},
   ...[...profile].filter(([key])=>key!=='line_manager_employee_no').map(([key,label])=>({header:`Profile | ${label}`,bucket:'profile' as const,key})),
   ...payrollFields.map(label=>({header:`Employees Payroll Details | ${label}`,bucket:'payroll' as const,key:fieldKey(label)}))]
- return [...fields.slice(0,4),managerField,fields[4],...controlFields.slice(0,3),...fields.slice(5),controlFields[3],...controlFields.slice(4)]
+ return [...coreFields,...controlFields.slice(0,3),...fields.slice(coreFields.length),controlFields[3],...controlFields.slice(4)]
 }
 export function cellText(value:unknown):string{
  if(value==null)return''
@@ -92,7 +88,7 @@ export async function template(snapshot:Snapshot):Promise<Buffer>{
  guide.addRow(['Bandana employee bulk upload'])
  for(const line of [
   'Choose UPDATE for an existing employee and enter their six-digit Employee ID. YES/NO keeps its existing replacement behaviour.',
-  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name and Position ID. Sub-department and Designation are derived from the position. An Active employee ID is assigned only when you apply.',
+  'Choose NEW for a new employee, leave Employee ID and YES/NO blank, and enter name and Position ID. Department, sub-department, designation and reporting line come from the position. Older workbook columns for these fields are ignored. An Active employee ID is assigned only when you apply.',
   'Give each NEW row a unique Upload reference such as NEW-01 if adding family rows; repeat that reference on the Family sheet with Employee ID blank.',
   'Potential duplicates by name, CNIC or email must be resolved before applying. Credential actions run after the profile is saved.',
   'The Employees sheet starts with saved values. Family details are normally submitted by employees in the portal.',
@@ -227,6 +223,11 @@ export function planUpload(rows:UploadRow[],snapshot:Snapshot,fields:Field[]):Pl
  const employees=new Map(snapshot.employees.map(e=>[e.employee_no,e])),details=new Map(snapshot.details.map(d=>[d.employee_id,d])),families=new Map((snapshot.families??[]).map(f=>[f.employee_id,f])),labels=new Map(fields.map(f=>[`${f.bucket}.${f.key}`,f.header]))
  const normalize=(value:unknown)=>cellText(value).toLowerCase().replace(/[^a-z0-9]/g,'')
  const claimed:UploadRow[]=[]
+ const positions=new Set(snapshot.positionIds)
+ for(const row of rows){
+  const id=row.core.position_id?.trim()
+  if(id && (!/^[0-9]+$/.test(id) || (snapshot.positionIds && !positions.has(Number(id)))))throw Error('Invalid Position ID for '+row.name+': '+id)
+ }
  for(const row of rows.filter(r=>r.action==='NEW')){
   if(!row.core.full_name?.trim()||!row.core.position_id?.trim())throw Error(`NEW ${row.name}: name and Position ID are required`)
   if(row.core.position_id?.trim()&&!/^[0-9]+$/.test(row.core.position_id.trim()))throw Error(`NEW ${row.name}: Position ID must be numeric`)
